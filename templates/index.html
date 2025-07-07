@@ -50,6 +50,20 @@
 
         .error { color: red; }
         .success { color: green; }
+
+        .download-link {
+            margin-top: 20px;
+            font-size: 18px;
+            background: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            text-decoration: none;
+        }
+
+        .download-link:hover {
+            background: #218838;
+        }
     </style>
 </head>
 <body>
@@ -67,5 +81,9 @@
         {% endfor %}
       {% endif %}
     {% endwith %}
+
+    {% if download_link %}
+        <a class="download-link" href="{{ download_link }}">Click here to download your video</a>
+    {% endif %}
 </body>
 </html>
