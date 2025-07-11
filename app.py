@@ -24,7 +24,7 @@ def download_video(url, output_path):
         'merge_output_format': 'mp4',
         'noplaylist': True,
         'quiet': True,
-        'cookiesfrombrowser': ('chrome',),  # <-- This line is key
+        'cookiefile': './cookies/cookies.txt',  # ✅ Use this for authentication
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -57,4 +57,4 @@ def download_file(filename):
     return send_from_directory(DOWNLOADS_FOLDER, filename, as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
