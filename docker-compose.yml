@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  videocatcher:
+    build: .
+    container_name: videocatcher
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./downloads:/app/downloads
+    restart: always

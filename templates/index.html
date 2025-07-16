@@ -1,141 +1,203 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>YouTube Video Downloader</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
-            color: white;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
+  <meta charset="UTF-8" />
+  <title>SnapIns Video Downloader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 40px 16px;
+    }
 
-        .logo {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-        }
+    .logo {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
 
-        .logo-icon {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, #FF6B6B, #6B73FF);
-            border-radius: 12px;
-            margin-right: 12px;
-        }
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #FF6B6B, #6B73FF);
+      border-radius: 12px;
+      margin-right: 12px;
+    }
 
-        .logo-text {
-            font-size: 1.8rem;
-            font-weight: 700;
-        }
+    .logo-text {
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
 
-        h1 {
-            font-size: 2.5rem;
-            margin: 10px 0;
-        }
+    h1 {
+      font-size: 2.5rem;
+      margin: 10px 0;
+    }
 
-        p.subtitle {
-            font-size: 1.1rem;
-            color: #c0c0c0;
-            margin-bottom: 30px;
-        }
+    .subtitle {
+      font-size: 1.1rem;
+      color: #c0c0c0;
+      margin-bottom: 30px;
+      text-align: center;
+    }
 
-        form {
-            display: flex;
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            max-width: 600px;
-            width: 90%;
-        }
+    .tabs {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
 
-        input[type="text"] {
-            flex: 1;
-            padding: 16px;
-            font-size: 16px;
-            border: none;
-            outline: none;
-        }
+    .tab {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      background: #1e2a38;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
 
-        button {
-            padding: 0 24px;
-            background-color: #007bff;
-            color: white;
-            font-size: 16px;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
+    .tab.active {
+      background: #007bff;
+    }
 
-        button:hover {
-            background-color: #0056b3;
-        }
+    form {
+      display: flex;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 600px;
+      width: 100%;
+      margin: 0 auto;
+      flex-direction: row;
+    }
 
-        .message {
-            margin-top: 24px;
-            font-size: 1rem;
-            font-weight: 500;
-        }
+    input[type="text"] {
+      flex: 1;
+      padding: 16px;
+      font-size: 16px;
+      border: none;
+      outline: none;
+    }
 
-        .error {
-            color: #ff4c4c;
-        }
+    button[type="submit"] {
+      padding: 0 24px;
+      background-color: #007bff;
+      color: white;
+      font-size: 16px;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
 
-        .success {
-            color: #4cd964;
-        }
+    button[type="submit"]:hover {
+      background-color: #0056b3;
+    }
 
-        .download-link {
-            margin-top: 16px;
-            display: inline-block;
-            background-color: #28a745;
-            color: white;
-            padding: 12px 18px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-        }
+    .message {
+      margin-top: 24px;
+      font-size: 1rem;
+      font-weight: 500;
+    }
 
-        .download-link:hover {
-            background-color: #218838;
-        }
-    </style>
+    .error {
+      color: #ff4c4c;
+    }
+
+    .success {
+      color: #4cd964;
+    }
+
+    .download-link {
+      margin-top: 16px;
+      display: inline-block;
+      background-color: #28a745;
+      color: white;
+      padding: 12px 18px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .download-link:hover {
+      background-color: #218838;
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 1.8rem;
+      }
+      form {
+        flex-direction: column;
+      }
+      input[type="text"] {
+        padding: 14px;
+        border-bottom: 1px solid #ccc;
+      }
+      button[type="submit"] {
+        width: 100%;
+        padding: 14px;
+        border-radius: 0 0 12px 12px;
+      }
+    }
+  </style>
 </head>
 <body>
 
-    <!-- <div class="logo">
-        <div class="logo-icon"></div>
-        <div class="logo-text">SnapIns.ai</div>
-    </div> -->
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <div class="logo-text">VideoCatcher.ai</div>
+  </div>
 
-    <h1>YouTube Video Downloader</h1>
-    <p class="subtitle">Download YouTube videos and Shorts with ease</p>
+  <!-- <h1>Video Downloader</h1> -->
+  <p class="subtitle">Download videos from YouTube, TikTok, Instagram</p>
 
-    <form method="POST">
-        <input type="text" name="video_url" placeholder="Paste YouTube URL here..." required>
-        <button type="submit">Download</button>
-    </form>
+  <div class="tabs">
+    <button class="tab active" onclick="setPlatform('youtube')">YouTube</button>
+    <button class="tab" onclick="setPlatform('tiktok')">TikTok</button>
+    <button class="tab" onclick="setPlatform('instagram')">Instagram</button>
+  </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="message {{ category }}">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+  <form method="POST">
+    <input type="hidden" name="platform" id="platform" value="youtube">
+    <input type="text" name="video_url" placeholder="Paste video URL here..." required>
+    <button type="submit">Download</button>
+  </form>
 
-    {% if download_link %}
-        <a class="download-link" href="{{ download_link }}">Click to download your video</a>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="message {{ category }}">{{ message }}</div>
+      {% endfor %}
     {% endif %}
+  {% endwith %}
+
+  {% if download_link %}
+    <a class="download-link" href="{{ download_link }}">Click to download your video</a>
+  {% endif %}
+
+  <script>
+    function setPlatform(platform) {
+      document.getElementById('platform').value = platform;
+      const tabs = document.querySelectorAll('.tab');
+      tabs.forEach(tab => tab.classList.remove('active'));
+      const button = [...tabs].find(btn => btn.textContent.toLowerCase() === platform);
+      if (button) button.classList.add('active');
+    }
+  </script>
 
 </body>
 </html>
