@@ -1,11 +1,19 @@
-version: '3.8'
+#version: '3.8'
 
 services:
   videocatcher:
     build: .
     container_name: videocatcher
+    user: 1002:1002  # Use your user's UID:GID
     ports:
       - "5000:5000"
     volumes:
       - ./downloads:/app/downloads
-    restart: always
+      - ./cookies:/app/cookies
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=production
+      # Proxy settings to bypass IP blocks (uncomment and configure as needed)
+      # - YT_DLP_PROXY=http://proxy-server:port
+      # - YT_DLP_PROXY=socks5://proxy-server:port
+    restart: unless-stopped

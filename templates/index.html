@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>SnapIns Video Downloader</title>
+  <title>A Multi-Platform Video Downloader</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
   <style>
     body {
@@ -19,38 +18,47 @@
       min-height: 100vh;
       padding: 40px 16px;
     }
-
+    /* Logo */
     .logo {
       display: flex;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 30px;
     }
-
     .logo-icon {
       width: 48px;
       height: 48px;
-      background: linear-gradient(135deg, #FF6B6B, #6B73FF);
+      position: relative;
+      background: linear-gradient(135deg, #00C6FF, #0072FF);
       border-radius: 12px;
-      margin-right: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+      margin-right: 15px;
     }
-
+    .logo-icon::before {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      background: white;
+      clip-path: polygon(0 0, 50% 25%, 100% 0, 100% 100%, 50% 75%, 0 100%);
+    }
     .logo-text {
-      font-size: 1.8rem;
-      font-weight: 700;
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(to right, #00C6FF, #0072FF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
     }
-
-    h1 {
-      font-size: 2.5rem;
-      margin: 10px 0;
-    }
-
     .subtitle {
       font-size: 1.1rem;
       color: #c0c0c0;
       margin-bottom: 30px;
       text-align: center;
     }
-
+    /* Tabs */
     .tabs {
       display: flex;
       justify-content: center;
@@ -58,7 +66,6 @@
       gap: 12px;
       flex-wrap: wrap;
     }
-
     .tab {
       padding: 10px 18px;
       border: none;
@@ -69,11 +76,10 @@
       font-weight: 600;
       transition: background 0.2s;
     }
-
     .tab.active {
       background: #007bff;
     }
-
+    /* Form */
     form {
       display: flex;
       background: white;
@@ -84,15 +90,32 @@
       margin: 0 auto;
       flex-direction: row;
     }
-
-    input[type="text"] {
+    .input-wrapper {
+      position: relative;
       flex: 1;
+      display: flex;
+      align-items: center;
+    }
+    .paste-button {
+      position: absolute;
+      right: 10px;
+      padding: 6px 12px;
+      background: #f0f0f0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #333;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    input[type="text"] {
+      width: 100%;
       padding: 16px;
+      padding-right: 90px;
       font-size: 16px;
       border: none;
       outline: none;
     }
-
     button[type="submit"] {
       padding: 0 24px;
       background-color: #007bff;
@@ -102,56 +125,42 @@
       cursor: pointer;
       transition: background-color 0.2s;
     }
-
     button[type="submit"]:hover {
       background-color: #0056b3;
     }
-
-    .message {
-      margin-top: 24px;
-      font-size: 1rem;
-      font-weight: 500;
+    /* Loader */
+    .loader {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid #007bff;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      animation: spin 1s linear infinite;
+      margin-top: 20px;
+      display: none;
     }
-
-    .error {
-      color: #ff4c4c;
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
-
-    .success {
-      color: #4cd964;
-    }
-
-    .download-link {
-      margin-top: 16px;
-      display: inline-block;
-      background-color: #28a745;
-      color: white;
-      padding: 12px 18px;
+    /* History */
+    .history {
+      margin-top: 30px;
+      max-width: 600px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 15px;
       border-radius: 8px;
-      text-decoration: none;
-      font-weight: 600;
     }
-
-    .download-link:hover {
-      background-color: #218838;
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding: 6px 0;
+      font-size: 0.9rem;
     }
-
-    @media (max-width: 600px) {
-      h1 {
-        font-size: 1.8rem;
-      }
-      form {
-        flex-direction: column;
-      }
-      input[type="text"] {
-        padding: 14px;
-        border-bottom: 1px solid #ccc;
-      }
-      button[type="submit"] {
-        width: 100%;
-        padding: 14px;
-        border-radius: 0 0 12px 12px;
-      }
+    .history-item:last-child {
+      border-bottom: none;
     }
   </style>
 </head>
@@ -159,11 +168,10 @@
 
   <div class="logo">
     <div class="logo-icon"></div>
-    <div class="logo-text">VideoCatcher.ai</div>
+    <div class="logo-text">VideoCatcher</div>
   </div>
 
-  <!-- <h1>Video Downloader</h1> -->
-  <p class="subtitle">Download videos from YouTube, TikTok, Instagram</p>
+  <p class="subtitle">Download videos from YouTube, TikTok, Instagram for free!</p>
 
   <div class="tabs">
     <button class="tab active" onclick="setPlatform('youtube')">YouTube</button>
@@ -171,31 +179,88 @@
     <button class="tab" onclick="setPlatform('instagram')">Instagram</button>
   </div>
 
-  <form method="POST">
+  <form id="downloadForm">
     <input type="hidden" name="platform" id="platform" value="youtube">
-    <input type="text" name="video_url" placeholder="Paste video URL here..." required>
+    <div class="input-wrapper">
+      <input type="text" name="video_url" id="video_url" placeholder="Paste video URL here..." required>
+      <button type="button" class="paste-button" onclick="pasteUrl()">Paste</button>
+    </div>
     <button type="submit">Download</button>
   </form>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      {% for category, message in messages %}
-        <div class="message {{ category }}">{{ message }}</div>
-      {% endfor %}
-    {% endif %}
-  {% endwith %}
+  <div class="loader" id="loader"></div>
 
-  {% if download_link %}
-    <a class="download-link" href="{{ download_link }}">Click to download your video</a>
-  {% endif %}
+  <div class="history" id="history" style="display:none;">
+    <h3>Download History</h3>
+    <div id="history-list"></div>
+  </div>
 
   <script>
+    let historyList = [];
+
     function setPlatform(platform) {
       document.getElementById('platform').value = platform;
-      const tabs = document.querySelectorAll('.tab');
-      tabs.forEach(tab => tab.classList.remove('active'));
-      const button = [...tabs].find(btn => btn.textContent.toLowerCase() === platform);
-      if (button) button.classList.add('active');
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    async function pasteUrl() {
+      try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById('video_url').value = text;
+      } catch (err) {
+        console.error('Clipboard read failed:', err);
+      }
+    }
+
+    document.getElementById('downloadForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const loader = document.getElementById('loader');
+      loader.style.display = 'block';
+
+      const url = document.getElementById('video_url').value;
+      const platform = document.getElementById('platform').value;
+
+      try {
+        const res = await fetch('/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, platform })
+        });
+        const data = await res.json();
+
+        loader.style.display = 'none';
+
+        if (data.error) {
+          alert('Error: ' + data.error);
+        } else {
+          window.open(data.download_link, '_blank');
+
+          // Add to history
+          historyList.unshift({
+            platform,
+            title: data.title || url,
+            time: new Date().toLocaleTimeString()
+          });
+          updateHistory();
+        }
+      } catch (err) {
+        loader.style.display = 'none';
+        alert('Request failed');
+      }
+    });
+
+    function updateHistory() {
+      const historyDiv = document.getElementById('history');
+      const listDiv = document.getElementById('history-list');
+      historyDiv.style.display = 'block';
+      listDiv.innerHTML = '';
+      historyList.slice(0,5).forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.innerHTML = `<span>[${item.platform}] ${item.title}</span><span>${item.time}</span>`;
+        listDiv.appendChild(div);
+      });
     }
   </script>
 

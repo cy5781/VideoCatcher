@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin - Cookie Management</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 40px 16px;
+    }
+    /* Logo */
+    .logo {
+      display: flex;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      position: relative;
+      background: linear-gradient(135deg, #00C6FF, #0072FF);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+      margin-right: 15px;
+    }
+    .logo-icon::before {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      background: white;
+      clip-path: polygon(0 0, 50% 25%, 100% 0, 100% 100%, 50% 75%, 0 100%);
+    }
+    .logo-text {
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(to right, #00C6FF, #0072FF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+    .subtitle {
+      font-size: 1.1rem;
+      color: #c0c0c0;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    /* Admin Container */
+    .admin-container {
+      max-width: 600px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 30px;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .section {
+      margin-bottom: 30px;
+    }
+    .section h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #00C6FF;
+    }
+    /* Forms */
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #c0c0c0;
+    }
+    input[type="password"], input[type="file"] {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: white;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="password"]:focus, input[type="file"]:focus {
+      border-color: #00C6FF;
+    }
+    input[type="file"] {
+      padding: 10px;
+    }
+    button {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #00C6FF, #0072FF);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      width: 100%;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 114, 255, 0.3);
+    }
+    .delete-btn {
+      background: linear-gradient(135deg, #ff4757, #ff3742);
+    }
+    .delete-btn:hover {
+      box-shadow: 0 8px 25px rgba(255, 71, 87, 0.3);
+    }
+    /* Messages */
+    .messages {
+      margin-top: 20px;
+    }
+    .message {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .message.success {
+      background: rgba(46, 204, 113, 0.2);
+      border: 1px solid #2ecc71;
+      color: #2ecc71;
+    }
+    .message.error {
+      background: rgba(231, 76, 60, 0.2);
+      border: 1px solid #e74c3c;
+      color: #e74c3c;
+    }
+    .message.warning {
+      background: rgba(241, 196, 15, 0.2);
+      border: 1px solid #f1c40f;
+      color: #f1c40f;
+    }
+    .message.info {
+      background: rgba(52, 152, 219, 0.2);
+      border: 1px solid #3498db;
+      color: #3498db;
+    }
+    /* Status Info */
+    .status-info {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .status-info p {
+      margin: 0;
+      color: #c0c0c0;
+    }
+    /* Navigation */
+    .nav-links {
+      margin-top: 30px;
+      text-align: center;
+    }
+    .nav-links a {
+      color: #00C6FF;
+      text-decoration: none;
+      font-weight: 600;
+      margin: 0 15px;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover {
+      color: #0072FF;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <div class="logo-text">VideoCatcher</div>
+  </div>
+
+  <p class="subtitle">Cookie Management Panel</p>
+
+  <div class="admin-container">
+    
+    <!-- Upload Cookies Section -->
+    <div class="section">
+      <h2>Upload cookies.txt</h2>
+      <form method="POST" action="/admin/upload_cookies" enctype="multipart/form-data">
+        <div class="form-group">
+          <label for="password">Admin Password</label>
+          <input type="password" name="password" id="password" placeholder="Enter admin password" required>
+        </div>
+        <div class="form-group">
+          <label for="cookies">Cookies File (.txt)</label>
+          <input type="file" name="cookies" id="cookies" accept=".txt" required>
+        </div>
+        <button type="submit">Upload Cookies</button>
+      </form>
+    </div>
+    
+    <!-- Delete Cookies Section -->
+    {% if cookies_present %}
+    <div class="section">
+      <h2>Current Cookies</h2>
+      <div class="status-info">
+        <p><strong>Status:</strong> Cookies file is present</p>
+        <p><strong>Last modified:</strong> {{ cookies_mtime }}</p>
+      </div>
+      <form method="POST" action="/admin/delete_cookies">
+        <button type="submit" class="delete-btn">Delete cookies.txt</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="section">
+      <div class="status-info">
+        <p><strong>Status:</strong> No cookies file found</p>
+        <p>Upload a cookies.txt file to enable restricted video downloads</p>
+      </div>
+    </div>
+    {% endif %}
+    
+    <!-- Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="messages">
+          {% for category, message in messages %}
+            <div class="message {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    
+    <!-- Navigation -->
+    <div class="nav-links">
+      <a href="{{ url_for('index') }}">← Back to Home</a>
+      <a href="{{ url_for('admin_logout') }}">Logout</a>
+    </div>
+    
+  </div>
+
+</body>
+</html>
