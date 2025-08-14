@@ -22,8 +22,9 @@ from functools import wraps
 
 from flask import (
     Flask, render_template, request, redirect, url_for, flash,
-    session, jsonify, send_from_directory, abort
+    session, jsonify, send_from_directory, abort, Response
 )
+import requests
 from werkzeug.utils import secure_filename
 from yt_dlp import YoutubeDL
 
@@ -39,10 +40,11 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")        # change it in p
 API_UPLOAD_TOKEN = os.getenv("API_UPLOAD_TOKEN", "")            # set to a secret for automated upload
 DOWNLOAD_TTL_MINUTES = int(os.getenv("DOWNLOAD_TTL_MINUTES", "120"))
 MAX_HISTORY = int(os.getenv("MAX_HISTORY", "200"))
+COOKIES_VALIDITY_MINUTES = int(os.getenv("COOKIES_VALIDITY_MINUTES", "15"))  # Cookie validity period
 FLASK_SECRET = os.getenv("FLASK_SECRET", uuid.uuid4().hex)
 
 # Ensure folders exist
-DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+# DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)  # No longer needed - videos are streamed directly
 BASE_DIR.joinpath("cookies").parent.mkdir(exist_ok=True)  # ensure parent exists
 
 # Flask app
@@ -87,6 +89,59 @@ def append_history(entry: dict):
         save_history(history)
 
 
+def save_cookie_timestamp(user_id: str):
+    """Save the timestamp when user uploads cookies"""
+    try:
+        timestamp_file = BASE_DIR / "cookies" / user_id / "upload_timestamp.json"
+        timestamp_data = {
+            "upload_time": datetime.utcnow().isoformat(),
+            "user_id": user_id
+        }
+        with timestamp_file.open("w", encoding="utf-8") as f:
+            json.dump(timestamp_data, f)
+        logger.info(f"Saved cookie timestamp for user {user_id}")
+    except Exception as e:
+        logger.warning(f"Failed to save cookie timestamp for user {user_id}: {e}")
+
+
+def are_cookies_valid(user_id: str) -> bool:
+    """Check if user's cookies are still valid (within 10 minutes of upload)"""
+    try:
+        if not user_id:
+            return False
+            
+        user_cookies_path = BASE_DIR / "cookies" / user_id / "cookies.txt"
+        timestamp_file = BASE_DIR / "cookies" / user_id / "upload_timestamp.json"
+        
+        # Check if cookies file exists
+        if not user_cookies_path.exists():
+            return False
+            
+        # Check if timestamp file exists
+        if not timestamp_file.exists():
+            return False
+            
+        # Load timestamp data
+        with timestamp_file.open("r", encoding="utf-8") as f:
+            timestamp_data = json.load(f)
+            
+        upload_time = datetime.fromisoformat(timestamp_data["upload_time"])
+        current_time = datetime.utcnow()
+        time_diff = current_time - upload_time
+        
+        # Check if within validity period
+        is_valid = time_diff.total_seconds() <= (COOKIES_VALIDITY_MINUTES * 60)
+        
+        if not is_valid:
+            logger.info(f"Cookies expired for user {user_id}. Uploaded {time_diff.total_seconds()/60:.1f} minutes ago")
+        
+        return is_valid
+        
+    except Exception as e:
+        logger.warning(f"Failed to check cookie validity for user {user_id}: {e}")
+        return False
+
+
 def cleanup_old_files_loop(folder: Path, ttl_minutes: int):
     ttl = timedelta(minutes=ttl_minutes)
     logger.info("Cleanup thread starting: remove files older than %s minutes", ttl_minutes)
@@ -107,8 +162,8 @@ def cleanup_old_files_loop(folder: Path, ttl_minutes: int):
         time.sleep(600)  # check every 10 minutes
 
 
-_cleanup_thread = threading.Thread(target=cleanup_old_files_loop, args=(DOWNLOADS_DIR, DOWNLOAD_TTL_MINUTES), daemon=True)
-_cleanup_thread.start()
+# _cleanup_thread = threading.Thread(target=cleanup_old_files_loop, args=(DOWNLOADS_DIR, DOWNLOAD_TTL_MINUTES), daemon=True)
+# _cleanup_thread.start()  # No longer needed - videos are streamed directly
 
 # -----------------------------
 # Helpers: platform detect, ytdl
@@ -124,20 +179,25 @@ def detect_platform(url: str) -> str:
     return "unknown"
 
 
-def build_ydl_opts(output_template: str, platform: str):
+def build_ydl_opts(output_template: str = None, platform: str = None, user_id: str = None):
     base = {
-        "outtmpl": output_template,
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
         "cachedir": "/app/.cache",
         "no_check_certificate": True,
-        "http_headers": {}
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
     }
+    
+    # Add output template only if provided (for actual downloads)
+    if output_template:
+        base["outtmpl"] = output_template
 
     # Platform-specific configurations
     if platform == "youtube":
-        base["format"] = "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best"
+        base["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality available
     elif platform == "tiktok":
         base["format"] = "best"
     elif platform == "instagram":
@@ -145,17 +205,167 @@ def build_ydl_opts(output_template: str, platform: str):
     else:
         base["format"] = "best"
 
-    # use cookies file if present (critical for restricted content)
-    if COOKIES_PATH.exists():
+    # Check for user-specific cookies first, then fall back to global cookies
+    cookies_used = False
+    if user_id:
+        user_cookies_path = BASE_DIR / "cookies" / user_id / "cookies.txt"
+        if user_cookies_path.exists():
+            base["cookiefile"] = str(user_cookies_path)
+            logger.info("Using user cookies file: %s", user_cookies_path)
+            cookies_used = True
+    
+    if not cookies_used and COOKIES_PATH.exists():
         base["cookiefile"] = str(COOKIES_PATH)
-        logger.info("Using cookies file: %s", COOKIES_PATH)
-    else:
+        logger.info("Using global cookies file: %s", COOKIES_PATH)
+        cookies_used = True
+    
+    if not cookies_used:
         logger.warning("No cookies file found - some videos may be restricted")
 
     return base
 
 
-def download_with_yt_dlp(url: str, platform: str) -> str:
+def get_video_info_and_url(url: str, platform: str, user_id: str = None) -> dict:
+    """Extract video information and direct download URL without downloading the file"""
+    # Multiple extraction strategies for better success rate
+    extraction_strategies = [
+        # Strategy 1: TV client (proven to work on command line)
+        {
+            "name": "TV Client",
+            "user_agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/4.0 Chrome/76.0.3809.146 TV Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "tv",
+                    "skip": ["hls"],
+                    "include_live_dash": False,
+                    "player_skip": ["configs"]
+                }
+            }
+        },
+        {
+            "name": "Android Client",
+            "user_agent": "Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "android",
+                    "skip": ["hls"],
+                    "include_live_dash": False
+                }
+            }
+        },
+        {
+            "name": "iOS Client",
+            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "ios",
+                    "skip": ["hls"]
+                }
+            }
+        }
+    ]
+    
+    last_error = None
+    
+    for attempt, strategy in enumerate(extraction_strategies, 1):
+        try:
+            opts = build_ydl_opts(None, platform, user_id)  # No output template needed
+            opts["noplaylist"] = True
+            
+            # Apply strategy-specific configurations
+            opts["http_headers"]["User-Agent"] = strategy["user_agent"]
+            if "extractor_args" in strategy:
+                if "extractor_args" not in opts:
+                    opts["extractor_args"] = {}
+                opts["extractor_args"].update(strategy["extractor_args"])
+            
+            # For YouTube, add strategy-specific optimizations
+            if platform == "youtube":
+                if "Mobile" in strategy["name"]:
+                    opts["format"] = "best[height<=720]/worst"  # Mobile-friendly format for compatibility
+                elif "TV" in strategy["name"]:
+                    opts["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality for TV
+                else:
+                    opts["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality available
+            
+            logger.info("Info extraction attempt %d/%d using %s strategy: %s (platform=%s)", 
+                       attempt, len(extraction_strategies), strategy["name"], url, platform)
+            
+            with YoutubeDL(opts) as ydl:
+                # Extract info without downloading
+                info = ydl.extract_info(url, download=False)
+                if not info:
+                    raise RuntimeError("Failed to extract video info")
+                
+                # Get the best format URL
+                if 'url' in info:
+                    video_url = info['url']
+                elif 'formats' in info and info['formats']:
+                    # Find the best format
+                    formats = info['formats']
+                    best_format = None
+                    for fmt in formats:
+                        if fmt.get('url') and fmt.get('vcodec') != 'none':
+                            best_format = fmt
+                            break
+                    if best_format:
+                        video_url = best_format['url']
+                    else:
+                        raise RuntimeError("No suitable video format found")
+                else:
+                    raise RuntimeError("No video URL found in extracted info")
+                
+                result = {
+                    'title': info.get('title', 'video'),
+                    'url': video_url,
+                    'ext': info.get('ext', 'mp4'),
+                    'filesize': info.get('filesize'),
+                    'duration': info.get('duration'),
+                    'uploader': info.get('uploader'),
+                    'headers': opts.get('http_headers', {})
+                }
+                
+                logger.info("Info extraction successful using %s strategy: %s", strategy["name"], info.get('title', 'Unknown'))
+                return result
+                
+        except Exception as e:
+            error_msg = str(e).lower()
+            last_error = e
+            
+            logger.warning("Strategy %s failed (attempt %d/%d): %s", 
+                         strategy["name"], attempt, len(extraction_strategies), str(e))
+            
+            # Check if it's a 403 error and we have more strategies
+            if "403" in error_msg or "forbidden" in error_msg:
+                if attempt < len(extraction_strategies):
+                    logger.info("Trying next extraction strategy...")
+                    time.sleep(3)  # Longer wait between strategy changes
+                    continue
+                else:
+                    logger.error("All extraction strategies failed with 403 errors")
+            elif "private" in error_msg or "unavailable" in error_msg:
+                # Video is private/unavailable - no point in retrying
+                logger.error("Video is private or unavailable: %s", str(e))
+                break
+            else:
+                # For other errors, try next strategy
+                if attempt < len(extraction_strategies):
+                    logger.info("Trying next extraction strategy due to error...")
+                    time.sleep(2)
+                    continue
+                else:
+                    break
+    
+    # If we get here, all strategies failed
+    if "403" in str(last_error).lower() or "forbidden" in str(last_error).lower():
+        raise RuntimeError(f"Download failed: All extraction methods blocked (403). This video requires authentication cookies or is geo-restricted. Please upload valid cookies via the admin panel. Last error: {last_error}")
+    elif "private" in str(last_error).lower() or "unavailable" in str(last_error).lower():
+        raise RuntimeError(f"Download failed: Video is private, deleted, or unavailable. Error: {last_error}")
+    else:
+        raise RuntimeError(f"Info extraction failed after trying {len(extraction_strategies)} extraction strategies. Last error: {last_error}")
+
+
+def download_with_yt_dlp(url: str, platform: str, user_id: str = None) -> str:
     unique = uuid.uuid4().hex[:10]
     outtmpl = str(DOWNLOADS_DIR / f"{unique}_%(title)s.%(ext)s")
     
@@ -201,7 +411,7 @@ def download_with_yt_dlp(url: str, platform: str) -> str:
     
     for attempt, strategy in enumerate(extraction_strategies, 1):
         try:
-            opts = build_ydl_opts(outtmpl, platform)
+            opts = build_ydl_opts(outtmpl, platform, user_id)
             
             # Apply strategy-specific configurations
             opts["http_headers"]["User-Agent"] = strategy["user_agent"]
@@ -213,11 +423,11 @@ def download_with_yt_dlp(url: str, platform: str) -> str:
             # For YouTube, add strategy-specific optimizations
             if platform == "youtube":
                 if "Mobile" in strategy["name"]:
-                    opts["format"] = "best[height<=720]/worst"  # Mobile-friendly format
+                    opts["format"] = "best[height<=720]/worst"  # Mobile-friendly format for compatibility
                 elif "TV" in strategy["name"]:
-                    opts["format"] = "best[height<=1080]"  # TV format
+                    opts["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality for TV
                 else:
-                    opts["format"] = "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best"
+                    opts["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality available
             
             logger.info("Download attempt %d/%d using %s strategy: %s (platform=%s)", 
                        attempt, len(extraction_strategies), strategy["name"], url, platform)
@@ -272,6 +482,53 @@ def download_with_yt_dlp(url: str, platform: str) -> str:
         raise RuntimeError(f"Download failed after trying {len(extraction_strategies)} extraction strategies. Last error: {last_error}")
 
 
+def stream_video_to_browser(video_info: dict):
+    """Stream video content directly to browser without saving to disk"""
+    try:
+        video_url = video_info['url']
+        headers = video_info.get('headers', {})
+        title = video_info.get('title', 'video')
+        ext = video_info.get('ext', 'mp4')
+        
+        # Clean filename for download
+        safe_filename = secure_filename(f"{title}.{ext}")
+        if not safe_filename:
+            safe_filename = f"video.{ext}"
+        
+        logger.info(f"Starting stream for: {safe_filename}")
+        
+        def generate():
+            try:
+                # Add timeout and better error handling
+                with requests.get(video_url, headers=headers, stream=True, timeout=30) as r:
+                    r.raise_for_status()
+                    logger.info(f"Successfully connected to video stream: {r.status_code}")
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            yield chunk
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request error streaming video: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"Unexpected error streaming video: {e}")
+                raise
+        
+        # Create response with appropriate headers
+        response = Response(generate(), mimetype='application/octet-stream')
+        response.headers['Content-Disposition'] = f'attachment; filename="{safe_filename}"'
+        
+        # Add content length if available
+        if video_info.get('filesize'):
+            response.headers['Content-Length'] = str(video_info['filesize'])
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in stream_video_to_browser: {e}")
+        # Return error response
+        return jsonify({"error": f"Failed to stream video: {str(e)}"}), 500
+
+
 # -----------------------------
 # Decorators: admin required
 # -----------------------------
@@ -311,21 +568,34 @@ def index():
             flash("No cookies.txt found. Restricted YouTube videos may fail. Upload cookies from Admin.", "warning")
 
         try:
-            saved_path = download_with_yt_dlp(url, platform)
-            filename = os.path.basename(saved_path)
-            download_link = url_for("download_file", filename=filename)
-
-            # record history
+            user_id = session.get('user_id')
+            
+            # For YouTube downloads, enforce cookie requirement with time validation
+            if platform == "youtube":
+                if not user_id:
+                    flash("Please upload your cookies file first to download YouTube videos", "error")
+                    return redirect(url_for("index"))
+                
+                if not are_cookies_valid(user_id):
+                    flash(f"Your cookies have expired or are missing. Please upload a new cookies file. Cookies are valid for {COOKIES_VALIDITY_MINUTES} minutes after upload.", "error")
+                    return redirect(url_for("index"))
+            
+            # Get video info and stream directly
+            video_info = get_video_info_and_url(url, platform, user_id)
+            
+            # Record history
             entry = {
                 "id": str(uuid.uuid4()),
                 "timestamp": datetime.utcnow().isoformat(),
                 "platform": platform,
                 "url": url,
-                "filename": filename,
+                "title": video_info.get('title', 'Unknown'),
+                "uploader": video_info.get('uploader', 'Unknown')
             }
             append_history(entry)
-            flash("Download completed!", "success")
-            return redirect(download_link)
+            
+            # Stream the video directly to browser
+            return stream_video_to_browser(video_info)
         except Exception as e:
             logger.exception("Download failed")
             flash(f"Download failed: {e}", "error")
@@ -333,6 +603,76 @@ def index():
 
     history = load_history()
     return render_template("index.html", history=history)
+
+
+@app.route("/cookie_status", methods=["GET"])
+def cookie_status():
+    """Get current cookie validity status for the user"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"valid": False, "message": "No user session"})
+    
+    if are_cookies_valid(user_id):
+        try:
+            # Get remaining time
+            timestamp_file = BASE_DIR / "cookies" / user_id / "upload_timestamp.json"
+            with timestamp_file.open("r", encoding="utf-8") as f:
+                timestamp_data = json.load(f)
+            
+            upload_time = datetime.fromisoformat(timestamp_data["upload_time"])
+            current_time = datetime.utcnow()
+            elapsed_seconds = (current_time - upload_time).total_seconds()
+            remaining_seconds = (COOKIES_VALIDITY_MINUTES * 60) - elapsed_seconds
+            
+            return jsonify({
+                "valid": True,
+                "remaining_seconds": max(0, int(remaining_seconds)),
+                "message": f"Cookies valid for {max(0, int(remaining_seconds/60))} more minutes"
+            })
+        except Exception as e:
+            logger.warning(f"Failed to get cookie timing info: {e}")
+            return jsonify({"valid": True, "message": "Cookies are valid"})
+    else:
+        return jsonify({"valid": False, "message": "Cookies expired or missing"})
+
+
+@app.route("/upload_cookies", methods=["POST"])
+def upload_cookies():
+    """
+    Allow users to upload their own cookies.txt for YouTube downloads
+    """
+    file = request.files.get("cookies")
+    if not file:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    filename = secure_filename(file.filename)
+    if not filename.lower().endswith(".txt"):
+        return jsonify({"error": "Please upload a .txt cookies file"}), 400
+
+    try:
+        # Create user-specific cookies directory
+        user_id = session.get('user_id')
+        if not user_id:
+            user_id = str(uuid.uuid4())
+            session['user_id'] = user_id
+        
+        user_cookies_dir = BASE_DIR / "cookies" / user_id
+        user_cookies_dir.mkdir(parents=True, exist_ok=True)
+        user_cookies_path = user_cookies_dir / "cookies.txt"
+        
+        # Save cookies file
+        tmp_path = user_cookies_path.with_suffix(".tmp")
+        file.save(tmp_path)
+        tmp_path.replace(user_cookies_path)
+        
+        # Save upload timestamp for validity tracking
+        save_cookie_timestamp(user_id)
+        
+        logger.info(f"User {user_id} uploaded cookies.txt")
+        return jsonify({"success": True, "message": f"Cookies uploaded successfully! Valid for {COOKIES_VALIDITY_MINUTES} minutes. You can now download restricted YouTube videos."})
+    except Exception as e:
+        logger.exception("Failed to save user cookies")
+        return jsonify({"error": f"Failed to save cookies: {e}"}), 500
 
 
 @app.route("/download", methods=["POST"])
@@ -355,40 +695,51 @@ def download():
         if platform == "unknown":
             return jsonify({"error": "Unsupported platform. Supported: YouTube, TikTok, Instagram"}), 400
             
-        # Download the video
-        saved_path = download_with_yt_dlp(url, platform)
-        filename = os.path.basename(saved_path)
-        download_link = url_for("download_file", filename=filename)
-        
-        # Record history
-        entry = {
-            "id": str(uuid.uuid4()),
-            "timestamp": datetime.utcnow().isoformat(),
-            "platform": platform,
-            "url": url,
-            "filename": filename,
-        }
-        append_history(entry)
-        
-        return jsonify({
-            "success": True,
-            "download_link": download_link,
-            "filename": filename,
-            "title": filename  # You could extract title from yt-dlp info if needed
-        })
+        # For YouTube downloads, enforce cookie requirement with time validation
+        user_id = session.get('user_id')
+        if platform == "youtube":
+            if not user_id:
+                return jsonify({"error": "Please upload your cookies file first to download YouTube videos"}), 400
+            
+            if not are_cookies_valid(user_id):
+                return jsonify({"error": f"Your cookies have expired or are missing. Please upload a new cookies file. Cookies are valid for {COOKIES_VALIDITY_MINUTES} minutes after upload."}), 400
+            
+        try:
+            # Get video info and stream directly
+            video_info = get_video_info_and_url(url, platform, user_id)
+            
+            # Record history
+            entry = {
+                "id": str(uuid.uuid4()),
+                "timestamp": datetime.utcnow().isoformat(),
+                "platform": platform,
+                "url": url,
+                "title": video_info.get('title', 'Unknown'),
+                "uploader": video_info.get('uploader', 'Unknown')
+            }
+            append_history(entry)
+            
+            # Stream the video directly to browser
+            return stream_video_to_browser(video_info)
+            
+        except Exception as e:
+            logger.exception("Failed to get video info or stream")
+            return jsonify({"error": str(e)}), 500
         
     except Exception as e:
         logger.exception("Download failed via API")
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/downloads/<path:filename>")
-def download_file(filename):
-    safe = secure_filename(filename)
-    file_path = DOWNLOADS_DIR / safe
-    if not file_path.exists():
-        abort(404)
-    return send_from_directory(str(DOWNLOADS_DIR), safe, as_attachment=True)
+# @app.route("/downloads/<path:filename>")
+# def download_file(filename):
+#     # This route is no longer needed since we stream videos directly
+#     # safe = secure_filename(filename)
+#     # file_path = DOWNLOADS_DIR / safe
+#     # if not file_path.exists():
+#     #     abort(404)
+#     # return send_from_directory(str(DOWNLOADS_DIR), safe, as_attachment=True)
+#     abort(404)  # Files are no longer saved to disk
 
 
 # -----------------------------

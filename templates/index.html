@@ -162,6 +162,152 @@
     .history-item:last-child {
       border-bottom: none;
     }
+    /* Cookie Upload Section */
+    .cookie-section {
+      max-width: 600px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 25px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .cookie-info h3 {
+      margin: 0 0 8px 0;
+      color: #00C6FF;
+      font-size: 1.1rem;
+    }
+    .cookie-info p {
+      margin: 0 0 15px 0;
+      color: #c0c0c0;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .cookie-upload {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .cookie-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      background: #1e2a38;
+      color: white;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    .cookie-btn:hover:not(:disabled) {
+      background: #2a3a48;
+    }
+    .cookie-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .upload-btn {
+      background: #007bff;
+    }
+    .upload-btn:hover:not(:disabled) {
+      background: #0056b3;
+    }
+    .cookie-status {
+      font-size: 0.85rem;
+      margin-left: 10px;
+    }
+    .cookie-status.success {
+      color: #28a745;
+    }
+    .cookie-timer {
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: rgba(255, 193, 7, 0.1);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: #ffc107;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+    }
+    .timer-icon {
+      font-size: 1rem;
+    }
+    .cookie-timer.expired {
+      background: rgba(220, 53, 69, 0.1);
+      border-color: rgba(220, 53, 69, 0.3);
+      color: #dc3545;
+    }
+    .cookie-status.error {
+      color: #dc3545;
+    }
+    .cookie-status.info {
+      color: #17a2b8;
+    }
+    /* Cookie Guide Styles */
+    .cookie-guide {
+      margin: 20px 0;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      border-left: 4px solid #00C6FF;
+    }
+    .cookie-guide h4 {
+      margin: 0 0 15px 0;
+      color: #00C6FF;
+      font-size: 1rem;
+    }
+    .guide-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .step-number {
+      background: #007bff;
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: bold;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-content {
+      flex: 1;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      color: #e0e0e0;
+    }
+    .step-content strong {
+      color: #fff;
+    }
+    .extension-link {
+      color: #00C6FF;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
+    }
+    .extension-link:hover {
+      border-bottom-color: #00C6FF;
+    }
+    .step-content a {
+      color: #00C6FF;
+      text-decoration: none;
+    }
+    .step-content a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -171,7 +317,58 @@
     <div class="logo-text">VideoCatcher</div>
   </div>
 
-  <p class="subtitle">Download videos from YouTube, TikTok, Instagram for free!</p>
+  <p class="subtitle">Download videos from YouTube (cookies required), TikTok, Instagram for free!</p>
+
+  <!-- Cookie Upload Section -->
+  <div class="cookie-section">
+    <div class="cookie-info">
+      <h3>🔑 Upload Your Cookies (Required)</h3>
+      <p><strong>Important:</strong> You must upload your own cookies.txt file to download YouTube videos. This ensures you can access content based on your account permissions.</p>
+    </div>
+    
+    <!-- Cookie Guide -->
+    <div class="cookie-guide">
+      <h4>📋 How to Get Your Cookies File:</h4>
+      <div class="guide-steps">
+        <div class="step">
+          <span class="step-number">1</span>
+          <div class="step-content">
+            <strong>Install Chrome Extension:</strong>
+            <a href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" class="extension-link">Get cookies.txt LOCALLY</a>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-number">2</span>
+          <div class="step-content">
+            <strong>Login to YouTube:</strong> Go to <a href="https://youtube.com" target="_blank">youtube.com</a> and sign in to your account
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-number">3</span>
+          <div class="step-content">
+            <strong>Download Cookies:</strong> Click the extension icon and select "Export cookies for this tab"
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-number">4</span>
+          <div class="step-content">
+            <strong>Upload Below:</strong> Choose the downloaded .txt file and upload it
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="cookie-upload">
+      <input type="file" id="cookieFile" accept=".txt" style="display: none;">
+      <button type="button" class="cookie-btn" onclick="document.getElementById('cookieFile').click()">Choose Cookies File</button>
+      <button type="button" class="cookie-btn upload-btn" onclick="uploadCookies()" disabled>Upload</button>
+      <span id="cookieStatus" class="cookie-status"></span>
+      <div id="cookieTimer" class="cookie-timer" style="display: none;">
+        <span class="timer-icon">⏰</span>
+        <span id="timerText">Cookies expire in: <span id="timeRemaining"></span></span>
+      </div>
+    </div>
+  </div>
 
   <div class="tabs">
     <button class="tab active" onclick="setPlatform('youtube')">YouTube</button>
@@ -198,11 +395,107 @@
   <script>
     let historyList = [];
 
-    function setPlatform(platform) {
-      document.getElementById('platform').value = platform;
-      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-      event.target.classList.add('active');
+    // Cookie upload functionality
+    document.getElementById('cookieFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      const uploadBtn = document.querySelector('.upload-btn');
+      const status = document.getElementById('cookieStatus');
+      
+      if (file) {
+        if (file.name.toLowerCase().endsWith('.txt')) {
+          uploadBtn.disabled = false;
+          status.textContent = `Selected: ${file.name}`;
+          status.className = 'cookie-status info';
+        } else {
+          uploadBtn.disabled = true;
+          status.textContent = 'Please select a .txt file';
+          status.className = 'cookie-status error';
+        }
+      } else {
+        uploadBtn.disabled = true;
+        status.textContent = '';
+        status.className = 'cookie-status';
+      }
+    });
+
+    async function uploadCookies() {
+      const fileInput = document.getElementById('cookieFile');
+      const file = fileInput.files[0];
+      const status = document.getElementById('cookieStatus');
+      const uploadBtn = document.querySelector('.upload-btn');
+      
+      if (!file) {
+        status.textContent = 'Please select a file first';
+        status.className = 'cookie-status error';
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('cookies', file);
+      
+      uploadBtn.disabled = true;
+      status.textContent = 'Uploading...';
+      status.className = 'cookie-status info';
+      
+      try {
+        const response = await fetch('/upload_cookies', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+           status.textContent = '✅ ' + data.message;
+           status.className = 'cookie-status success';
+           fileInput.value = ''; // Clear file input
+           
+           // Start cookie timer
+           startCookieTimer();
+           
+           // Update download form to show ready state
+           updateDownloadFormState(true);
+         } else {
+          status.textContent = '❌ ' + (data.error || 'Upload failed');
+          status.className = 'cookie-status error';
+          uploadBtn.disabled = false;
+        }
+      } catch (error) {
+        status.textContent = '❌ Upload failed: ' + error.message;
+        status.className = 'cookie-status error';
+        uploadBtn.disabled = false;
+      }
     }
+
+     function updateDownloadFormState(cookiesUploaded) {
+       const form = document.getElementById('downloadForm');
+       const submitBtn = form.querySelector('button[type="submit"]');
+       const platform = document.getElementById('platform').value;
+       
+       if (platform === 'youtube') {
+         if (cookiesUploaded) {
+           submitBtn.style.background = '#28a745';
+           submitBtn.textContent = 'Download (Ready!)';
+         } else {
+           submitBtn.style.background = '#6c757d';
+           submitBtn.textContent = 'Upload Cookies First';
+         }
+       } else {
+         submitBtn.style.background = '#007bff';
+         submitBtn.textContent = 'Download';
+       }
+     }
+
+     function setPlatform(platform) {
+        document.getElementById('platform').value = platform;
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        // Update download button state based on platform and cookie status
+        const cookieStatus = document.getElementById('cookieStatus');
+        const cookiesUploaded = cookieStatus.classList.contains('success');
+        updateDownloadFormState(cookiesUploaded);
+      }
 
     async function pasteUrl() {
       try {
@@ -215,11 +508,21 @@
 
     document.getElementById('downloadForm').addEventListener('submit', async function(e) {
       e.preventDefault();
+      
+      // Check if cookies are uploaded for YouTube downloads
+      const platform = document.getElementById('platform').value;
+      const cookieStatus = document.getElementById('cookieStatus');
+      
+      if (platform === 'youtube' && !cookieStatus.classList.contains('success')) {
+        alert('⚠️ Please upload your cookies file first to download YouTube videos!');
+        document.querySelector('.cookie-section').scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+      
       const loader = document.getElementById('loader');
       loader.style.display = 'block';
 
       const url = document.getElementById('video_url').value;
-      const platform = document.getElementById('platform').value;
 
       try {
         const res = await fetch('/download', {
@@ -227,26 +530,54 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url, platform })
         });
-        const data = await res.json();
 
         loader.style.display = 'none';
 
-        if (data.error) {
-          alert('Error: ' + data.error);
-        } else {
-          window.open(data.download_link, '_blank');
-
-          // Add to history
-          historyList.unshift({
-            platform,
-            title: data.title || url,
-            time: new Date().toLocaleTimeString()
-          });
-          updateHistory();
+        if (!res.ok) {
+          // Try to get error message from response
+          try {
+            const errorData = await res.json();
+            alert('Error: ' + (errorData.error || 'Download failed'));
+          } catch {
+            alert('Error: Download failed with status ' + res.status);
+          }
+          return;
         }
+
+        // Get filename from Content-Disposition header
+        const contentDisposition = res.headers.get('Content-Disposition');
+        let filename = 'video';
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+
+        // Create blob and download
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(downloadUrl);
+
+        // Add to history
+        historyList.unshift({
+          platform,
+          title: filename.replace(/\.[^/.]+$/, ''), // Remove extension
+          time: new Date().toLocaleTimeString()
+        });
+        updateHistory();
+        
+        alert('✅ Download started! Check your downloads folder.');
+        
       } catch (err) {
         loader.style.display = 'none';
-        alert('Request failed');
+        alert('Request failed: ' + err.message);
       }
     });
 
@@ -262,6 +593,151 @@
         listDiv.appendChild(div);
       });
     }
+    
+    // Cookie timer functionality
+    let cookieTimerInterval = null;
+    const COOKIE_VALIDITY_MINUTES = 15;
+    
+    function startCookieTimer() {
+      const timerDiv = document.getElementById('cookieTimer');
+      const timeRemainingSpan = document.getElementById('timeRemaining');
+      
+      // Clear any existing timer
+      if (cookieTimerInterval) {
+        clearInterval(cookieTimerInterval);
+      }
+      
+      // Show timer
+      timerDiv.style.display = 'flex';
+      timerDiv.classList.remove('expired');
+      
+      // Set expiration time (15 minutes from now)
+      const expirationTime = new Date().getTime() + (COOKIE_VALIDITY_MINUTES * 60 * 1000);
+      
+      // Update timer every second
+      cookieTimerInterval = setInterval(() => {
+        const now = new Date().getTime();
+        const timeLeft = expirationTime - now;
+        
+        if (timeLeft <= 0) {
+          // Timer expired
+          clearInterval(cookieTimerInterval);
+          timeRemainingSpan.textContent = 'EXPIRED';
+          timerDiv.classList.add('expired');
+          
+          // Update download form state
+          updateDownloadFormState(false);
+          
+          // Update cookie status
+          const status = document.getElementById('cookieStatus');
+          status.textContent = '⚠️ Cookies expired. Please upload again.';
+          status.className = 'cookie-status error';
+        } else {
+          // Calculate minutes and seconds
+          const minutes = Math.floor(timeLeft / (1000 * 60));
+          const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+          
+          // Format time display
+          const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+          timeRemainingSpan.textContent = timeString;
+          
+          // Change color when less than 2 minutes remaining
+          if (timeLeft <= 2 * 60 * 1000) {
+            timerDiv.classList.add('expired');
+          }
+        }
+      }, 1000);
+    }
+    
+    function hideCookieTimer() {
+      const timerDiv = document.getElementById('cookieTimer');
+      timerDiv.style.display = 'none';
+      if (cookieTimerInterval) {
+        clearInterval(cookieTimerInterval);
+        cookieTimerInterval = null;
+      }
+    }
+
+    // Check cookie status on page load
+    async function checkCookieStatus() {
+      try {
+        const response = await fetch('/cookie_status');
+        const data = await response.json();
+        
+        if (data.valid && data.remaining_seconds > 0) {
+          // Cookies are still valid, show status and start timer
+          const status = document.getElementById('cookieStatus');
+          status.textContent = '✅ ' + data.message;
+          status.className = 'cookie-status success';
+          
+          // Start timer with remaining time
+          startCookieTimerWithRemaining(data.remaining_seconds);
+          updateDownloadFormState(true);
+        } else {
+          // Cookies expired or missing
+          updateDownloadFormState(false);
+        }
+      } catch (error) {
+        console.log('Could not check cookie status:', error);
+        updateDownloadFormState(false);
+      }
+    }
+    
+    function startCookieTimerWithRemaining(remainingSeconds) {
+      const timerDiv = document.getElementById('cookieTimer');
+      const timeRemainingSpan = document.getElementById('timeRemaining');
+      
+      // Clear any existing timer
+      if (cookieTimerInterval) {
+        clearInterval(cookieTimerInterval);
+      }
+      
+      // Show timer
+      timerDiv.style.display = 'flex';
+      timerDiv.classList.remove('expired');
+      
+      // Set expiration time based on remaining seconds
+      const expirationTime = new Date().getTime() + (remainingSeconds * 1000);
+      
+      // Update timer every second
+      cookieTimerInterval = setInterval(() => {
+        const now = new Date().getTime();
+        const timeLeft = expirationTime - now;
+        
+        if (timeLeft <= 0) {
+          // Timer expired
+          clearInterval(cookieTimerInterval);
+          timeRemainingSpan.textContent = 'EXPIRED';
+          timerDiv.classList.add('expired');
+          
+          // Update download form state
+          updateDownloadFormState(false);
+          
+          // Update cookie status
+          const status = document.getElementById('cookieStatus');
+          status.textContent = '⚠️ Cookies expired. Please upload again.';
+          status.className = 'cookie-status error';
+        } else {
+          // Calculate minutes and seconds
+          const minutes = Math.floor(timeLeft / (1000 * 60));
+          const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+          
+          // Format time display
+          const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+          timeRemainingSpan.textContent = timeString;
+          
+          // Change color when less than 2 minutes remaining
+          if (timeLeft <= 2 * 60 * 1000) {
+            timerDiv.classList.add('expired');
+          }
+        }
+      }, 1000);
+    }
+
+    // Initialize download form state on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      checkCookieStatus();
+    });
   </script>
 
 </body>

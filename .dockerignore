@@ -1,8 +1,42 @@
+# Python cache and compiled files
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+*.so
+
+# Virtual environments
 env/
 venv/
+.env
+.venv
+
+# Development files
+.git/
+.gitignore
+README.md
+*.md
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Application runtime data (exclude from image)
 downloads/
-cookies.txt
+history.json
+
+# Logs
+*.log
+logs/
+
+# Docker files (not needed in container)
+Dockerfile
+docker-compose.yml
+deploy.sh

@@ -1,6 +1,4 @@
-flask==2.3.3
-flask-login==0.6.2
-yt-dlp>=2025.6.30
-selenium==4.11.2
-psutil==5.9.5
-webdriver-manager==4.0.0
+flask==3.0.0
+werkzeug==3.0.1
+yt-dlp>=2024.12.13
+requests>=2.31.0
