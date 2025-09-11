@@ -1,4 +1,4 @@
 flask==3.0.0
 werkzeug==3.0.1
-yt-dlp>=2024.12.13
+yt-dlp>=2025.8.27
 requests>=2.31.0

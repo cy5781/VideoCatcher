@@ -195,15 +195,40 @@ def build_ydl_opts(output_template: str = None, platform: str = None, user_id: s
     if output_template:
         base["outtmpl"] = output_template
 
-    # Platform-specific configurations
+    # Add proxy support if configured
+    proxy_url = os.getenv("PROXY_URL")
+    if proxy_url:
+        base["proxy"] = proxy_url
+        logger.info("Using proxy: %s", proxy_url)
+    
+    # Additional options to improve compatibility and quality
+    base["socket_timeout"] = 30
+    base["retries"] = 3
+    base["fragment_retries"] = 3
+    base["skip_unavailable_fragments"] = True
+    base["keep_fragments"] = False
+    base["abort_on_unavailable_fragment"] = False
+    # Quality preferences - prioritize higher quality like yt-dlp command line
+    base["prefer_free_formats"] = False  # Don't prefer free formats over higher quality
+    base["youtube_include_dash_manifest"] = True  # Include DASH formats for better quality
+    
+    # Platform-specific configurations - prioritize high quality formats
     if platform == "youtube":
-        base["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality available
+        # Enhanced format selection to prioritize higher resolution
+        # Try best video+audio combo first, then fallback to best available
+        base["format"] = "bestvideo[height>=1080]+bestaudio/bestvideo[height>=720]+bestaudio/bestvideo+bestaudio/best[height>=720]/best"
+        # Additional YouTube-specific options for better quality
+        base["writesubtitles"] = False
+        base["writeautomaticsub"] = False
+        base["ignoreerrors"] = False
+        # Force merge output format to ensure best quality
+        base["merge_output_format"] = "mp4"
     elif platform == "tiktok":
-        base["format"] = "best"
+        base["format"] = "bestvideo+bestaudio/best"
     elif platform == "instagram":
-        base["format"] = "best"
+        base["format"] = "bestvideo+bestaudio/best"
     else:
-        base["format"] = "best"
+        base["format"] = "bestvideo+bestaudio/best"
 
     # Check for user-specific cookies first, then fall back to global cookies
     cookies_used = False
@@ -229,42 +254,68 @@ def get_video_info_and_url(url: str, platform: str, user_id: str = None) -> dict
     """Extract video information and direct download URL without downloading the file"""
     # Multiple extraction strategies for better success rate
     extraction_strategies = [
-        # Strategy 1: TV client (proven to work on command line)
+        # Strategy 1: Web client (best quality, no restrictions)
         {
-            "name": "TV Client",
-            "user_agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/4.0 Chrome/76.0.3809.146 TV Safari/537.36",
+            "name": "Web Client",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "extractor_args": {
                 "youtube": {
-                    "player_client": "tv",
-                    "skip": ["hls"],
-                    "include_live_dash": False,
-                    "player_skip": ["configs"]
+                    "player_client": "web"
                 }
             }
         },
-        {
-            "name": "Android Client",
-            "user_agent": "Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-            "extractor_args": {
-                "youtube": {
-                    "player_client": "android",
-                    "skip": ["hls"],
-                    "include_live_dash": False
-                }
-            }
-        },
+        # Strategy 2: iOS client (no skip restrictions)
         {
             "name": "iOS Client",
             "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
             "extractor_args": {
                 "youtube": {
-                    "player_client": "ios",
-                    "skip": ["hls"]
+                    "player_client": "ios"
+                }
+            }
+        },
+        # Strategy 3: Android client (no skip restrictions)
+        {
+            "name": "Android Client",
+            "user_agent": "Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "android"
+                }
+            }
+        },
+        # Strategy 4: TV client
+        {
+            "name": "TV Client",
+            "user_agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/4.0 Chrome/76.0.3809.146 TV Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "tv"
+                }
+            }
+        },
+        # Strategy 5: TV Embedded client
+        {
+            "name": "TV Embedded Client",
+            "user_agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/4.0 Chrome/76.0.3809.146 TV Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "tv_embedded"
+                }
+            }
+        },
+        # Strategy 6: Web Music client
+        {
+            "name": "Web Music Client",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "web_music"
                 }
             }
         }
     ]
-    
+     
     last_error = None
     
     for attempt, strategy in enumerate(extraction_strategies, 1):
@@ -279,17 +330,16 @@ def get_video_info_and_url(url: str, platform: str, user_id: str = None) -> dict
                     opts["extractor_args"] = {}
                 opts["extractor_args"].update(strategy["extractor_args"])
             
-            # For YouTube, add strategy-specific optimizations
-            if platform == "youtube":
-                if "Mobile" in strategy["name"]:
-                    opts["format"] = "best[height<=720]/worst"  # Mobile-friendly format for compatibility
-                elif "TV" in strategy["name"]:
-                    opts["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality for TV
-                else:
-                    opts["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality available
+            # Format selection is now handled in build_ydl_opts with enhanced quality prioritization
+            # No need to override here as build_ydl_opts already sets optimal format selection
+            
+            # Add detailed format logging
+            opts["listformats"] = False  # Don't list formats, but log selected format
+            opts["verbose"] = True  # Enable verbose logging to see format selection
             
             logger.info("Info extraction attempt %d/%d using %s strategy: %s (platform=%s)", 
                        attempt, len(extraction_strategies), strategy["name"], url, platform)
+            logger.info("Using format string: %s", opts.get("format", "default"))
             
             with YoutubeDL(opts) as ydl:
                 # Extract info without downloading
@@ -297,23 +347,121 @@ def get_video_info_and_url(url: str, platform: str, user_id: str = None) -> dict
                 if not info:
                     raise RuntimeError("Failed to extract video info")
                 
-                # Get the best format URL
-                if 'url' in info:
-                    video_url = info['url']
-                elif 'formats' in info and info['formats']:
-                    # Find the best format
-                    formats = info['formats']
-                    best_format = None
-                    for fmt in formats:
-                        if fmt.get('url') and fmt.get('vcodec') != 'none':
-                            best_format = fmt
+                # Log detailed format information
+                if 'formats' in info and info['formats']:
+                    logger.info("Available formats count: %d", len(info['formats']))
+                    # Log details of top 10 formats for debugging, including URLs
+                    for i, fmt in enumerate(info['formats'][:10]):
+                        url = fmt.get('url', 'N/A')
+                        url_type = 'M3U8' if url.endswith('.m3u8') else 'MPD' if url.endswith('.mpd') else 'Direct'
+                        logger.info("Format %d: ID=%s, Resolution=%sx%s, FPS=%s, VCodec=%s, ACodec=%s, URL_Type=%s", 
+                                   i+1, fmt.get('format_id', 'N/A'), 
+                                   fmt.get('width', 'N/A'), fmt.get('height', 'N/A'),
+                                   fmt.get('fps', 'N/A'), fmt.get('vcodec', 'N/A'), fmt.get('acodec', 'N/A'), url_type)
+                
+                # Get the best format URL - prioritize direct URLs over HLS/DASH
+                video_url = None
+                selected_format = None
+                
+                if 'requested_formats' in info and info['requested_formats']:
+                    # yt-dlp selected multiple formats (video+audio), use the video format URL
+                    for fmt in info['requested_formats']:
+                        if fmt.get('vcodec') and fmt.get('vcodec') != 'none':
+                            selected_format = fmt
+                            video_url = fmt['url']
                             break
-                    if best_format:
-                        video_url = best_format['url']
-                    else:
-                        raise RuntimeError("No suitable video format found")
-                else:
-                    raise RuntimeError("No video URL found in extracted info")
+                    if selected_format:
+                        logger.info("Selected video format from requested_formats: ID=%s, Resolution=%sx%s, FPS=%s", 
+                                   selected_format.get('format_id', 'N/A'), 
+                                   selected_format.get('width', 'N/A'), selected_format.get('height', 'N/A'), 
+                                   selected_format.get('fps', 'N/A'))
+                
+                if not video_url and 'formats' in info and info['formats']:
+                    # Filter formats to avoid HLS/DASH playlists and prefer direct URLs
+                    def is_direct_url(fmt):
+                        url = fmt.get('url', '')
+                        # Avoid HLS (.m3u8) and DASH (.mpd) playlist URLs
+                        return (url and 
+                               not url.endswith('.m3u8') and 
+                               not url.endswith('.mpd') and 
+                               'manifest' not in url.lower() and
+                               'playlist' not in url.lower())
+                    
+                    # Enhanced format selection with better quality prioritization
+                    # First try: High quality formats (1080p+) with both video and audio (direct URLs)
+                    video_formats = [f for f in info['formats'] 
+                                   if f.get('vcodec') and f.get('vcodec') != 'none' 
+                                   and f.get('acodec') and f.get('acodec') != 'none'
+                                   and f.get('url')
+                                   and f.get('height', 0) >= 1080
+                                   and is_direct_url(f)]
+                    
+                    if not video_formats:
+                        # Second try: Good quality formats (720p+) with both video and audio (direct URLs)
+                        video_formats = [f for f in info['formats'] 
+                                       if f.get('vcodec') and f.get('vcodec') != 'none' 
+                                       and f.get('acodec') and f.get('acodec') != 'none'
+                                       and f.get('url')
+                                       and f.get('height', 0) >= 720
+                                       and is_direct_url(f)]
+                    
+                    if not video_formats:
+                        # Third try: Medium quality formats (480p+) with both video and audio (direct URLs)
+                        video_formats = [f for f in info['formats'] 
+                                       if f.get('vcodec') and f.get('vcodec') != 'none' 
+                                       and f.get('acodec') and f.get('acodec') != 'none'
+                                       and f.get('url')
+                                       and f.get('height', 0) >= 480
+                                       and is_direct_url(f)]
+                    
+                    if not video_formats:
+                        # Fourth try: Any format with both video and audio (direct URLs only)
+                        video_formats = [f for f in info['formats'] 
+                                       if f.get('vcodec') and f.get('vcodec') != 'none' 
+                                       and f.get('acodec') and f.get('acodec') != 'none'
+                                       and f.get('url')
+                                       and is_direct_url(f)]
+                    
+                    if not video_formats:
+                        # Fifth try: High quality video-only formats (1080p+, direct URLs)
+                        video_formats = [f for f in info['formats'] 
+                                       if f.get('vcodec') and f.get('vcodec') != 'none'
+                                       and f.get('url')
+                                       and f.get('height', 0) >= 1080
+                                       and is_direct_url(f)]
+                    
+                    if not video_formats:
+                        # Sixth try: Good quality video-only formats (720p+, direct URLs)
+                        video_formats = [f for f in info['formats'] 
+                                       if f.get('vcodec') and f.get('vcodec') != 'none'
+                                       and f.get('url')
+                                       and f.get('height', 0) >= 720
+                                       and is_direct_url(f)]
+                    
+                    if video_formats:
+                        # Sort by quality (height * width * fps) - prioritize higher resolution
+                        def format_quality(fmt):
+                            height = fmt.get('height', 0) or 0
+                            width = fmt.get('width', 0) or 0
+                            fps = fmt.get('fps', 0) or 0
+                            # Bonus for higher resolution
+                            resolution_bonus = height * 2 if height >= 720 else 0
+                            return (height * width * fps) + resolution_bonus
+                        
+                        selected_format = max(video_formats, key=format_quality)
+                        video_url = selected_format['url']
+                        logger.info("Selected best quality format: ID=%s, Resolution=%sx%s, FPS=%s, URL type=%s", 
+                                   selected_format.get('format_id', 'N/A'), 
+                                   selected_format.get('width', 'N/A'), selected_format.get('height', 'N/A'), 
+                                   selected_format.get('fps', 'N/A'),
+                                   'direct' if is_direct_url(selected_format) else 'playlist')
+                
+                if not video_url and 'url' in info:
+                    video_url = info['url']
+                    logger.info("Using direct video URL from info (fallback)")
+                
+                if not video_url:
+                    raise RuntimeError("No suitable video URL found in extracted info")
                 
                 result = {
                     'title': info.get('title', 'video'),
@@ -371,7 +519,32 @@ def download_with_yt_dlp(url: str, platform: str, user_id: str = None) -> str:
     
     # Multiple extraction strategies for better success rate
     extraction_strategies = [
-        # Strategy 1: TV client (proven to work on command line)
+        # Strategy 1: iOS client (often most reliable)
+        {
+            "name": "iOS Client",
+            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "ios",
+                    "skip": ["hls"],
+                    "player_skip": ["webpage"]
+                }
+            }
+        },
+        # Strategy 2: Android client
+        {
+            "name": "Android Client",
+            "user_agent": "Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "android",
+                    "skip": ["hls"],
+                    "include_live_dash": False,
+                    "player_skip": ["webpage"]
+                }
+            }
+        },
+        # Strategy 3: TV client (proven to work on command line)
         {
             "name": "TV Client",
             "user_agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/4.0 Chrome/76.0.3809.146 TV Safari/537.36",
@@ -380,28 +553,43 @@ def download_with_yt_dlp(url: str, platform: str, user_id: str = None) -> str:
                     "player_client": "tv",
                     "skip": ["hls"],
                     "include_live_dash": False,
-                    "player_skip": ["configs"]
+                    "player_skip": ["configs", "webpage"]
                 }
             }
         },
+        # Strategy 4: TV Embedded client
         {
-            "name": "Android Client",
+            "name": "TV Embedded Client",
+            "user_agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/4.0 Chrome/76.0.3809.146 TV Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "tv_embedded",
+                    "skip": ["hls"],
+                    "player_skip": ["webpage"]
+                }
+            }
+        },
+        # Strategy 5: Web Music client
+        {
+            "name": "Web Music Client",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": "web_music",
+                    "skip": ["hls"],
+                    "player_skip": ["webpage"]
+                }
+            }
+        },
+        # Strategy 6: Android Music client
+        {
+            "name": "Android Music Client",
             "user_agent": "Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
             "extractor_args": {
                 "youtube": {
-                    "player_client": "android",
+                    "player_client": "android_music",
                     "skip": ["hls"],
-                    "include_live_dash": False
-                }
-            }
-        },
-        {
-            "name": "iOS Client",
-            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
-            "extractor_args": {
-                "youtube": {
-                    "player_client": "ios",
-                    "skip": ["hls"]
+                    "player_skip": ["webpage"]
                 }
             }
         }
@@ -420,26 +608,45 @@ def download_with_yt_dlp(url: str, platform: str, user_id: str = None) -> str:
                     opts["extractor_args"] = {}
                 opts["extractor_args"].update(strategy["extractor_args"])
             
-            # For YouTube, add strategy-specific optimizations
-            if platform == "youtube":
-                if "Mobile" in strategy["name"]:
-                    opts["format"] = "best[height<=720]/worst"  # Mobile-friendly format for compatibility
-                elif "TV" in strategy["name"]:
-                    opts["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality for TV
-                else:
-                    opts["format"] = "best/bestvideo+bestaudio/worst"  # Get the absolute best quality available
+            # Let build_ydl_opts format selection take effect (no override needed)
+            
+            # Add detailed format logging
+            opts["listformats"] = False  # Don't list formats, but log selected format
+            opts["verbose"] = True  # Enable verbose logging to see format selection
             
             logger.info("Download attempt %d/%d using %s strategy: %s (platform=%s)", 
                        attempt, len(extraction_strategies), strategy["name"], url, platform)
             
-            # Debug: Log the exact extractor_args being used
+            # Debug: Log the exact extractor_args and format being used
             logger.info("Extractor args: %s", opts.get("extractor_args", {}))
+            logger.info("Using format string: %s", opts.get("format", "default"))
             
             with YoutubeDL(opts) as ydl:
                 # Direct download without double extraction
                 info = ydl.extract_info(url, download=True)
                 if not info:
                     raise RuntimeError("Failed to extract video info")
+                
+                # Log detailed format information
+                if 'formats' in info and info['formats']:
+                    logger.info("Available formats count: %d", len(info['formats']))
+                    # Log details of top 3 formats for debugging
+                    for i, fmt in enumerate(info['formats'][:3]):
+                        logger.info("Format %d: ID=%s, Resolution=%sx%s, FPS=%s, VCodec=%s, ACodec=%s", 
+                                   i+1, fmt.get('format_id', 'N/A'), 
+                                   fmt.get('width', 'N/A'), fmt.get('height', 'N/A'),
+                                   fmt.get('fps', 'N/A'), fmt.get('vcodec', 'N/A'), fmt.get('acodec', 'N/A'))
+                
+                # Log the selected format
+                if 'requested_formats' in info:
+                    for i, fmt in enumerate(info['requested_formats']):
+                        logger.info("Selected format %d: ID=%s, Resolution=%sx%s, FPS=%s", 
+                                   i+1, fmt.get('format_id', 'N/A'), 
+                                   fmt.get('width', 'N/A'), fmt.get('height', 'N/A'), fmt.get('fps', 'N/A'))
+                elif 'format_id' in info:
+                    logger.info("Selected single format: ID=%s, Resolution=%sx%s, FPS=%s", 
+                               info.get('format_id', 'N/A'), info.get('width', 'N/A'), 
+                               info.get('height', 'N/A'), info.get('fps', 'N/A'))
                 
                 saved = ydl.prepare_filename(info)
                 logger.info("Download successful using %s strategy: %s", strategy["name"], saved)
@@ -673,6 +880,68 @@ def upload_cookies():
     except Exception as e:
         logger.exception("Failed to save user cookies")
         return jsonify({"error": f"Failed to save cookies: {e}"}), 500
+
+
+@app.route("/test_video", methods=["POST"])
+def test_video():
+    """Test if a video is available for download without actually downloading it"""
+    try:
+        data = request.get_json()
+        if not data or "url" not in data:
+            return jsonify({"error": "URL is required"}), 400
+        
+        url = data["url"].strip()
+        if not url:
+            return jsonify({"error": "URL cannot be empty"}), 400
+        
+        platform = detect_platform(url)
+        user_id = session.get("user_id")
+        
+        # For YouTube, check if cookies are required
+        if platform == "youtube" and not user_id:
+            return jsonify({
+                "error": "Please upload your cookies file first to test YouTube videos",
+                "requires_cookies": True
+            }), 400
+        
+        logger.info("Testing video availability: %s (platform=%s)", url, platform)
+        
+        # Try to extract basic info without downloading
+        try:
+            video_info = get_video_info_and_url(url, platform, user_id)
+            return jsonify({
+                "available": True,
+                "title": video_info.get("title", "Unknown"),
+                "duration": video_info.get("duration"),
+                "uploader": video_info.get("uploader"),
+                "platform": platform,
+                "message": "Video is available for download"
+            })
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "private" in error_msg or "unavailable" in error_msg:
+                return jsonify({
+                    "available": False,
+                    "error": "Video is private, deleted, or unavailable",
+                    "platform": platform
+                })
+            elif "403" in error_msg or "forbidden" in error_msg:
+                return jsonify({
+                    "available": False,
+                    "error": "Video is geo-restricted or requires authentication",
+                    "platform": platform,
+                    "suggestion": "Try uploading fresh cookies or using a VPN"
+                })
+            else:
+                return jsonify({
+                    "available": False,
+                    "error": f"Cannot access video: {str(e)}",
+                    "platform": platform
+                })
+    
+    except Exception as e:
+        logger.error("Error testing video: %s", str(e))
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 
 @app.route("/download", methods=["POST"])
