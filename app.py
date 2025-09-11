@@ -224,9 +224,36 @@ def build_ydl_opts(output_template: str = None, platform: str = None, user_id: s
         # Force merge output format to ensure best quality
         base["merge_output_format"] = "mp4"
     elif platform == "tiktok":
-        base["format"] = "bestvideo+bestaudio/best"
+        # Enhanced TikTok format selection for better quality
+        base["format"] = "bestvideo[height>=720]+bestaudio/bestvideo[height>=480]+bestaudio/bestvideo+bestaudio/best[height>=720]/best"
+        # TikTok-specific options for better extraction
+        base["writesubtitles"] = False
+        base["writeautomaticsub"] = False
+        base["merge_output_format"] = "mp4"
+        # Add TikTok-specific headers
+        base["http_headers"].update({
+            "Referer": "https://www.tiktok.com/",
+            "Accept-Language": "en-US,en;q=0.9"
+        })
     elif platform == "instagram":
-        base["format"] = "bestvideo+bestaudio/best"
+        # Enhanced Instagram format selection for better quality and story/reel support
+        base["format"] = "bestvideo[height>=720]+bestaudio/bestvideo[height>=480]+bestaudio/bestvideo+bestaudio/best[height>=720]/best"
+        # Instagram-specific options
+        base["writesubtitles"] = False
+        base["writeautomaticsub"] = False
+        base["merge_output_format"] = "mp4"
+        # Add Instagram-specific headers
+        base["http_headers"].update({
+            "Referer": "https://www.instagram.com/",
+            "Accept-Language": "en-US,en;q=0.9"
+        })
+        # Instagram-specific extractor args for better compatibility
+        base["extractor_args"] = {
+            "instagram": {
+                "api_version": "v1",
+                "include_stories": True
+            }
+        }
     else:
         base["format"] = "bestvideo+bestaudio/best"
 
@@ -252,8 +279,9 @@ def build_ydl_opts(output_template: str = None, platform: str = None, user_id: s
 
 def get_video_info_and_url(url: str, platform: str, user_id: str = None) -> dict:
     """Extract video information and direct download URL without downloading the file"""
-    # Multiple extraction strategies for better success rate
-    extraction_strategies = [
+    # Platform-specific extraction strategies for better success rate
+    if platform == "youtube":
+        extraction_strategies = [
         # Strategy 1: Web client (best quality, no restrictions)
         {
             "name": "Web Client",
@@ -315,6 +343,82 @@ def get_video_info_and_url(url: str, platform: str, user_id: str = None) -> dict
             }
         }
     ]
+    elif platform == "tiktok":
+        extraction_strategies = [
+            # Strategy 1: Mobile web client (most reliable for TikTok)
+            {
+                "name": "TikTok Mobile Web",
+                "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+                "extractor_args": {
+                    "tiktok": {
+                        "webpage_download_timeout": 30
+                    }
+                }
+            },
+            # Strategy 2: Desktop web client
+            {
+                "name": "TikTok Desktop Web",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "extractor_args": {
+                    "tiktok": {
+                        "webpage_download_timeout": 30
+                    }
+                }
+            },
+            # Strategy 3: Android app user agent
+            {
+                "name": "TikTok Android App",
+                "user_agent": "com.zhiliaoapp.musically/2022600040 (Linux; U; Android 11; en_US; SM-G991B; Build/RP1A.200720.012; Cronet/58.0.2991.0)",
+                "extractor_args": {
+                    "tiktok": {
+                        "webpage_download_timeout": 30
+                    }
+                }
+            }
+        ]
+    elif platform == "instagram":
+        extraction_strategies = [
+            # Strategy 1: Mobile web client (best for stories and reels)
+            {
+                "name": "Instagram Mobile Web",
+                "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+                "extractor_args": {
+                    "instagram": {
+                        "api_version": "v1",
+                        "include_stories": True
+                    }
+                }
+            },
+            # Strategy 2: Desktop web client
+            {
+                "name": "Instagram Desktop Web",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "extractor_args": {
+                    "instagram": {
+                        "api_version": "v1"
+                    }
+                }
+            },
+            # Strategy 3: Instagram app user agent
+            {
+                "name": "Instagram App",
+                "user_agent": "Instagram 219.0.0.12.117 Android",
+                "extractor_args": {
+                    "instagram": {
+                        "api_version": "v1",
+                        "include_stories": True
+                    }
+                }
+            }
+        ]
+    else:
+        # Default strategies for other platforms
+        extraction_strategies = [
+            {
+                "name": "Default Web Client",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+        ]
      
     last_error = None
     
@@ -964,11 +1068,12 @@ def download():
         if platform == "unknown":
             return jsonify({"error": "Unsupported platform. Supported: YouTube, TikTok, Instagram"}), 400
             
-        # For YouTube downloads, enforce cookie requirement with time validation
+        # For YouTube and Instagram downloads, enforce cookie requirement with time validation
         user_id = session.get('user_id')
-        if platform == "youtube":
+        if platform in ["youtube", "instagram"]:
             if not user_id:
-                return jsonify({"error": "Please upload your cookies file first to download YouTube videos"}), 400
+                platform_name = "YouTube" if platform == "youtube" else "Instagram"
+                return jsonify({"error": f"Please upload your cookies file first to download {platform_name} videos"}), 400
             
             if not are_cookies_valid(user_id):
                 return jsonify({"error": f"Your cookies have expired or are missing. Please upload a new cookies file. Cookies are valid for {COOKIES_VALIDITY_MINUTES} minutes after upload."}), 400

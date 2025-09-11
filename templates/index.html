@@ -317,13 +317,14 @@
     <div class="logo-text">VideoCatcher</div>
   </div>
 
-  <p class="subtitle">Download videos from YouTube (cookies required), TikTok, Instagram for free!</p>
+  <p class="subtitle">Download videos from YouTube, TikTok, Instagram for free!</p>
 
   <!-- Cookie Upload Section -->
   <div class="cookie-section">
     <div class="cookie-info">
-      <h3>🔑 Upload Your Cookies (Required)</h3>
-      <p><strong>Important:</strong> You must upload your own cookies.txt file to download YouTube videos. This ensures you can access content based on your account permissions.</p>
+      <h3>🔑 Upload Your Cookies (YouTube & Instagram)</h3>
+      <p><strong>YouTube & Instagram:</strong> Cookies are required to download videos from these platforms. This ensures you can access content based on your account permissions.</p>
+      <p><strong>TikTok:</strong> No cookies needed! You can download directly without any setup.</p>
     </div>
     
     <!-- Cookie Guide -->
@@ -340,7 +341,7 @@
         <div class="step">
           <span class="step-number">2</span>
           <div class="step-content">
-            <strong>Login to YouTube:</strong> Go to <a href="https://youtube.com" target="_blank">youtube.com</a> and sign in to your account
+            <strong>Login to YouTube:</strong> Go to <a href="https://youtube.com" target="_blank">youtube.com</a> and sign in to your account (only needed for YouTube downloads)
           </div>
         </div>
         <div class="step">
@@ -472,7 +473,7 @@
        const submitBtn = form.querySelector('button[type="submit"]');
        const platform = document.getElementById('platform').value;
        
-       if (platform === 'youtube') {
+       if (platform === 'youtube' || platform === 'instagram') {
          if (cookiesUploaded) {
            submitBtn.style.background = '#28a745';
            submitBtn.textContent = 'Download (Ready!)';
@@ -490,6 +491,17 @@
         document.getElementById('platform').value = platform;
         document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
         event.target.classList.add('active');
+        
+        // Show/hide cookie section and guide based on platform
+        const cookieSection = document.querySelector('.cookie-section');
+        const cookieGuide = document.querySelector('.cookie-guide');
+        if (platform === 'youtube' || platform === 'instagram') {
+          cookieSection.style.display = 'block';
+          if (cookieGuide) cookieGuide.style.display = 'block';
+        } else {
+          cookieSection.style.display = 'none';
+          if (cookieGuide) cookieGuide.style.display = 'none';
+        }
         
         // Update download button state based on platform and cookie status
         const cookieStatus = document.getElementById('cookieStatus');
