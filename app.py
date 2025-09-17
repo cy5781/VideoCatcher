@@ -22,7 +22,7 @@ from functools import wraps
 
 from flask import (
     Flask, render_template, request, redirect, url_for, flash,
-    session, jsonify, send_from_directory, abort, Response
+    session, jsonify, send_from_directory, abort, Response, stream_template
 )
 import requests
 from werkzeug.utils import secure_filename
@@ -35,6 +35,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", BASE_DIR / "downloads"))
 COOKIES_PATH = Path(os.getenv("COOKIES_PATH", BASE_DIR / "cookies/cookies.txt"))
 HISTORY_PATH = Path(os.getenv("HISTORY_PATH", BASE_DIR / "history.json"))
+ANALYTICS_PATH = Path(os.getenv("ANALYTICS_PATH", BASE_DIR / "analytics.json"))
 
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")        # change it in production
 API_UPLOAD_TOKEN = os.getenv("API_UPLOAD_TOKEN", "")            # set to a secret for automated upload
@@ -59,6 +60,167 @@ logger = logging.getLogger("VideoCatcher")
 # Utilities: history, cleanup
 # -----------------------------
 _history_lock = threading.Lock()
+
+# Global dictionary to track download progress
+_download_progress = {}
+_progress_lock = threading.Lock()
+
+# Global analytics tracking
+_analytics_lock = threading.Lock()
+
+
+def get_country_from_ip(ip_address):
+    """Get country from IP address using a free geolocation API"""
+    try:
+        # Skip localhost and private IPs
+        if ip_address in ['127.0.0.1', 'localhost'] or ip_address.startswith('192.168.') or ip_address.startswith('10.') or ip_address.startswith('172.'):
+            return "Local"
+        
+        # Use ipapi.co for free geolocation (1000 requests/day limit)
+        response = requests.get(f"https://ipapi.co/{ip_address}/country_name/", timeout=5)
+        if response.status_code == 200:
+            country = response.text.strip()
+            return country if country and country != "Undefined" else "Unknown"
+        else:
+            return "Unknown"
+    except Exception as e:
+        logger.warning(f"Failed to get country for IP {ip_address}: {e}")
+        return "Unknown"
+
+
+def load_analytics():
+    """Load analytics data from JSON file"""
+    if ANALYTICS_PATH.exists():
+        try:
+            with open(ANALYTICS_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load analytics.json: {e}")
+    
+    # Return default analytics structure
+    return {
+        "total_visits": 0,
+        "unique_users": 0,
+        "total_downloads": 0,
+        "platform_stats": {
+            "youtube": 0,
+            "tiktok": 0,
+            "instagram": 0,
+            "other": 0
+        },
+        "country_stats": {},
+        "daily_stats": {},
+        "user_sessions": {},
+        "last_updated": datetime.now().isoformat()
+    }
+
+
+def save_analytics(analytics_data):
+    """Save analytics data to JSON file"""
+    try:
+        analytics_data["last_updated"] = datetime.now().isoformat()
+        with open(ANALYTICS_PATH, 'w', encoding='utf-8') as f:
+            json.dump(analytics_data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"Failed to save analytics.json: {e}")
+
+
+def track_user_visit(user_id=None):
+    """Track a user visit and update analytics"""
+    with _analytics_lock:
+        analytics = load_analytics()
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get user's country from IP
+        user_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', '127.0.0.1'))
+        if user_ip and ',' in user_ip:
+            user_ip = user_ip.split(',')[0].strip()
+        country = get_country_from_ip(user_ip)
+        
+        # Increment total visits
+        analytics["total_visits"] += 1
+        
+        # Track country stats
+        if "country_stats" not in analytics:
+            analytics["country_stats"] = {}
+        if country not in analytics["country_stats"]:
+            analytics["country_stats"][country] = 0
+        analytics["country_stats"][country] += 1
+        
+        # Track daily stats
+        if today not in analytics["daily_stats"]:
+            analytics["daily_stats"][today] = {
+                "visits": 0,
+                "unique_users": set(),
+                "downloads": 0
+            }
+        
+        analytics["daily_stats"][today]["visits"] += 1
+        
+        # Track unique users
+        if user_id:
+            if user_id not in analytics["user_sessions"]:
+                analytics["unique_users"] += 1
+                analytics["user_sessions"][user_id] = {
+                    "first_visit": datetime.now().isoformat(),
+                    "last_visit": datetime.now().isoformat(),
+                    "visit_count": 1,
+                    "downloads": 0,
+                    "country": country
+                }
+            else:
+                analytics["user_sessions"][user_id]["last_visit"] = datetime.now().isoformat()
+                analytics["user_sessions"][user_id]["visit_count"] += 1
+                # Update country if not set
+                if "country" not in analytics["user_sessions"][user_id]:
+                    analytics["user_sessions"][user_id]["country"] = country
+            
+            # Add to daily unique users (convert set to list for JSON serialization)
+            daily_unique = analytics["daily_stats"][today]["unique_users"]
+            if isinstance(daily_unique, set):
+                daily_unique.add(user_id)
+                analytics["daily_stats"][today]["unique_users"] = list(daily_unique)
+            elif isinstance(daily_unique, list):
+                if user_id not in daily_unique:
+                    daily_unique.append(user_id)
+        
+        save_analytics(analytics)
+
+
+def track_download(platform, user_id=None):
+    """Track a download and update analytics"""
+    with _analytics_lock:
+        analytics = load_analytics()
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Increment total downloads
+        analytics["total_downloads"] += 1
+        
+        # Track platform stats
+        platform_key = platform.lower() if platform in ["youtube", "tiktok", "instagram"] else "other"
+        analytics["platform_stats"][platform_key] += 1
+        
+        # Track daily downloads
+        if today not in analytics["daily_stats"]:
+            analytics["daily_stats"][today] = {
+                "visits": 0,
+                "unique_users": [],
+                "downloads": 0
+            }
+        analytics["daily_stats"][today]["downloads"] += 1
+        
+        # Track user downloads
+        if user_id and user_id in analytics["user_sessions"]:
+            analytics["user_sessions"][user_id]["downloads"] += 1
+        
+        save_analytics(analytics)
+
+
+def get_user_id():
+    """Get or create a unique user ID for session tracking"""
+    if 'user_id' not in session:
+        session['user_id'] = str(uuid.uuid4())
+    return session['user_id']
 
 
 def load_history():
@@ -840,6 +1002,83 @@ def stream_video_to_browser(video_info: dict):
         return jsonify({"error": f"Failed to stream video: {str(e)}"}), 500
 
 
+def stream_video_to_browser_with_progress(video_info: dict, download_id: str):
+    """Stream video content with progress tracking"""
+    try:
+        video_url = video_info['url']
+        headers = video_info.get('headers', {})
+        title = video_info.get('title', 'video')
+        ext = video_info.get('ext', 'mp4')
+        
+        # Clean filename for download
+        safe_filename = secure_filename(f"{title}.{ext}")
+        if not safe_filename:
+            safe_filename = f"video.{ext}"
+        
+        logger.info(f"Starting stream with progress tracking for: {safe_filename}")
+        
+        def generate():
+            try:
+                downloaded = 0
+                with requests.get(video_url, headers=headers, stream=True, timeout=30) as r:
+                    r.raise_for_status()
+                    total_size = int(r.headers.get('content-length', 0))
+                    
+                    # Update total size in progress
+                    with _progress_lock:
+                        if download_id in _download_progress:
+                            _download_progress[download_id]['total_size'] = total_size
+                    
+                    logger.info(f"Successfully connected to video stream: {r.status_code}, size: {total_size}")
+                    
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            downloaded += len(chunk)
+                            
+                            # Update progress
+                            with _progress_lock:
+                                if download_id in _download_progress:
+                                    _download_progress[download_id]['downloaded'] = downloaded
+                            
+                            yield chunk
+                    
+                    # Mark as completed
+                    with _progress_lock:
+                        if download_id in _download_progress:
+                            _download_progress[download_id]['completed'] = True
+                            _download_progress[download_id]['downloaded'] = downloaded
+                    
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request error streaming video: {e}")
+                with _progress_lock:
+                    if download_id in _download_progress:
+                        _download_progress[download_id]['error'] = str(e)
+                raise
+            except Exception as e:
+                logger.error(f"Unexpected error streaming video: {e}")
+                with _progress_lock:
+                    if download_id in _download_progress:
+                        _download_progress[download_id]['error'] = str(e)
+                raise
+        
+        # Create response with appropriate headers
+        response = Response(generate(), mimetype='application/octet-stream')
+        response.headers['Content-Disposition'] = f'attachment; filename="{safe_filename}"'
+        
+        # Add content length if available
+        if video_info.get('filesize'):
+            response.headers['Content-Length'] = str(video_info['filesize'])
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in stream_video_to_browser_with_progress: {e}")
+        with _progress_lock:
+            if download_id in _download_progress:
+                _download_progress[download_id]['error'] = str(e)
+        raise
+
+
 # -----------------------------
 # Decorators: admin required
 # -----------------------------
@@ -858,6 +1097,10 @@ def require_admin(f):
 # -----------------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
+    # Track user visit
+    user_id = get_user_id()
+    track_user_visit(user_id)
+    
     download_link = None
     error = None
 
@@ -1079,8 +1322,22 @@ def download():
                 return jsonify({"error": f"Your cookies have expired or are missing. Please upload a new cookies file. Cookies are valid for {COOKIES_VALIDITY_MINUTES} minutes after upload."}), 400
             
         try:
-            # Get video info and stream directly
+            # Get video info
             video_info = get_video_info_and_url(url, platform, user_id)
+            
+            # Generate download ID
+            download_id = str(uuid.uuid4())
+            
+            # Initialize progress tracking
+            with _progress_lock:
+                _download_progress[download_id] = {
+                    'downloaded': 0,
+                    'total_size': video_info.get('filesize', 0),
+                    'filename': video_info.get('title', 'video'),
+                    'completed': False,
+                     'error': None,
+                     'video_info': video_info
+                 }
             
             # Record history
             entry = {
@@ -1093,8 +1350,17 @@ def download():
             }
             append_history(entry)
             
-            # Stream the video directly to browser
-            return stream_video_to_browser(video_info)
+            # Track download analytics
+            track_download(platform, user_id)
+            
+            # Return download info with download ID
+            return jsonify({
+                "success": True,
+                "download_id": download_id,
+                "download_url": f"/stream/{download_id}",
+                "filename": video_info.get('title', 'video'),
+                "filesize": video_info.get('filesize', 0)
+            })
             
         except Exception as e:
             logger.exception("Failed to get video info or stream")
@@ -1103,6 +1369,69 @@ def download():
     except Exception as e:
         logger.exception("Download failed via API")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/download_progress/<download_id>")
+def download_progress(download_id):
+    """Server-Sent Events endpoint for download progress"""
+    def generate():
+        while True:
+            with _progress_lock:
+                progress_data = _download_progress.get(download_id)
+            
+            if progress_data is None:
+                # Download not found or completed
+                yield f"data: {{\"error\": \"Download not found\", \"download_id\": \"{download_id}\"}}\n\n"
+                break
+            
+            if progress_data.get('completed', False):
+                # Download completed
+                yield f"data: {{\"completed\": true, \"download_id\": \"{download_id}\", \"filename\": \"{progress_data.get('filename', '')}\", \"total_size\": {progress_data.get('total_size', 0)}}}\n\n"
+                # Clean up progress data
+                with _progress_lock:
+                    _download_progress.pop(download_id, None)
+                break
+            
+            if progress_data.get('error'):
+                # Download error
+                yield f"data: {{\"error\": \"{progress_data['error']}\", \"download_id\": \"{download_id}\"}}\n\n"
+                # Clean up progress data
+                with _progress_lock:
+                    _download_progress.pop(download_id, None)
+                break
+            
+            # Send progress update
+            downloaded = progress_data.get('downloaded', 0)
+            total_size = progress_data.get('total_size', 0)
+            percentage = (downloaded / total_size * 100) if total_size > 0 else 0
+            
+            yield f"data: {{\"progress\": {percentage:.1f}, \"downloaded\": {downloaded}, \"total_size\": {total_size}, \"download_id\": \"{download_id}\", \"filename\": \"{progress_data.get('filename', '')}\"}}\n\n"
+            
+            time.sleep(0.5)  # Update every 500ms
+    
+    return Response(generate(), mimetype='text/event-stream')
+
+
+@app.route("/stream/<download_id>")
+def stream_video(download_id):
+    """Stream video with progress tracking"""
+    with _progress_lock:
+        progress_data = _download_progress.get(download_id)
+    
+    if not progress_data or not progress_data.get('video_info'):
+        return jsonify({"error": "Download not found or expired"}), 404
+    
+    video_info = progress_data['video_info']
+    
+    try:
+        return stream_video_to_browser_with_progress(video_info, download_id)
+    except Exception as e:
+        # Update progress with error
+        with _progress_lock:
+            if download_id in _download_progress:
+                _download_progress[download_id]['error'] = str(e)
+        logger.error(f"Error streaming video {download_id}: {e}")
+        return jsonify({"error": f"Failed to stream video: {str(e)}"}), 500
 
 
 # @app.route("/downloads/<path:filename>")
@@ -1149,7 +1478,32 @@ def admin():
     cookies_mtime = None
     if cookies_present:
         cookies_mtime = datetime.utcfromtimestamp(COOKIES_PATH.stat().st_mtime).isoformat()
-    return render_template("admin.html", cookies_present=cookies_present, cookies_mtime=cookies_mtime)
+    
+    # Load analytics data
+    analytics = load_analytics()
+    
+    # Calculate some additional stats
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_stats = analytics.get("daily_stats", {}).get(today, {"visits": 0, "downloads": 0, "unique_users": []})
+    
+    # Get recent daily stats (last 7 days)
+    recent_days = []
+    for i in range(7):
+        date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        day_stats = analytics.get("daily_stats", {}).get(date, {"visits": 0, "downloads": 0, "unique_users": []})
+        recent_days.append({
+            "date": date,
+            "visits": day_stats["visits"],
+            "downloads": day_stats["downloads"],
+            "unique_users": len(day_stats["unique_users"]) if isinstance(day_stats["unique_users"], list) else 0
+        })
+    
+    return render_template("admin.html", 
+                         cookies_present=cookies_present, 
+                         cookies_mtime=cookies_mtime,
+                         analytics=analytics,
+                         today_stats=today_stats,
+                         recent_days=recent_days)
 
 
 @app.route("/admin/upload_cookies", methods=["POST"])
@@ -1231,7 +1585,38 @@ def api_upload_cookies():
 # -----------------------------
 # Error handlers
 # -----------------------------
-@app.errorhandler(404)
+@app.route("/api/track", methods=["POST"])
+def api_track():
+    """API endpoint for client-side analytics tracking"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        user_id = get_user_id()
+        event = data.get('event')
+        
+        if event == 'page_view':
+            track_user_visit(user_id)
+        elif event == 'user_interaction':
+            action = data.get('action')
+            details = data.get('details', {})
+            
+            # Log interaction for debugging/analytics
+            logger.info(f"User interaction: {action} - {details}")
+            
+            # Track specific interactions
+            if action == 'download_success':
+                platform = details.get('platform', 'unknown')
+                track_download(platform, user_id)
+        
+        return jsonify({"success": True})
+    
+    except Exception as e:
+        logger.error(f"Analytics tracking error: {e}")
+        return jsonify({"error": "Tracking failed"}), 500
+
+
 def not_found(e):
     return render_template("index.html", history=load_history(), error="Page not found"), 404
 

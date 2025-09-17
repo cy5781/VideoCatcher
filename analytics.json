@@ -1,0 +1,49 @@
+{
+  "total_visits": 9,
+  "unique_users": 3,
+  "total_downloads": 0,
+  "platform_stats": {
+    "youtube": 0,
+    "tiktok": 0,
+    "instagram": 0,
+    "other": 0
+  },
+  "country_stats": {
+    "Local": 2
+  },
+  "daily_stats": {
+    "2025-09-17": {
+      "visits": 9,
+      "unique_users": [
+        "df72d51d-6b50-4322-8941-9aa72dadb985",
+        "2303ec7d-9532-453a-84b8-424c67d95ec6",
+        "1a311a76-12c4-468f-8658-9d2faac32f66"
+      ],
+      "downloads": 0
+    }
+  },
+  "user_sessions": {
+    "df72d51d-6b50-4322-8941-9aa72dadb985": {
+      "first_visit": "2025-09-17T09:35:51.777805",
+      "last_visit": "2025-09-17T09:39:18.046507",
+      "visit_count": 3,
+      "downloads": 0,
+      "country": "Local"
+    },
+    "2303ec7d-9532-453a-84b8-424c67d95ec6": {
+      "first_visit": "2025-09-17T09:37:49.698213",
+      "last_visit": "2025-09-17T09:38:34.969126",
+      "visit_count": 4,
+      "downloads": 0,
+      "country": "Local"
+    },
+    "1a311a76-12c4-468f-8658-9d2faac32f66": {
+      "first_visit": "2025-09-17T09:47:33.647540",
+      "last_visit": "2025-09-17T09:47:34.005187",
+      "visit_count": 2,
+      "downloads": 0,
+      "country": "Local"
+    }
+  },
+  "last_updated": "2025-09-17T09:47:34.005215"
+}
