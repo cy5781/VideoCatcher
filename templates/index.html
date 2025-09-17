@@ -308,6 +308,84 @@
     .step-content a:hover {
       text-decoration: underline;
     }
+    
+    /* Progress Bar Styles */
+    .progress-container {
+      display: none;
+      margin: 20px 0;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .progress-container.show {
+      display: block;
+    }
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .progress-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .progress-percentage {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #00C6FF;
+    }
+    .progress-bar-container {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #00C6FF, #0072FF);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: #ccc;
+    }
+    .progress-filename {
+      font-weight: 500;
+      color: #fff;
+      margin-bottom: 5px;
+      word-break: break-all;
+    }
+    .progress-status {
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+    .progress-status.downloading {
+      background: rgba(0, 198, 255, 0.1);
+      color: #00C6FF;
+      border: 1px solid rgba(0, 198, 255, 0.3);
+    }
+    .progress-status.completed {
+      background: rgba(40, 167, 69, 0.1);
+      color: #28a745;
+      border: 1px solid rgba(40, 167, 69, 0.3);
+    }
+    .progress-status.error {
+      background: rgba(220, 53, 69, 0.1);
+      color: #dc3545;
+      border: 1px solid rgba(220, 53, 69, 0.3);
+    }
   </style>
 </head>
 <body>
@@ -386,6 +464,23 @@
     <button type="submit">Download</button>
   </form>
 
+  <!-- Progress Bar Component -->
+  <div class="progress-container" id="progressContainer">
+    <div class="progress-header">
+      <div class="progress-title">Downloading Video</div>
+      <div class="progress-percentage" id="progressPercentage">0%</div>
+    </div>
+    <div class="progress-filename" id="progressFilename">Preparing download...</div>
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="progress-info">
+      <span id="progressDownloaded">0 MB</span>
+      <span id="progressTotal">0 MB</span>
+    </div>
+    <div class="progress-status downloading" id="progressStatus">Initializing download...</div>
+  </div>
+
   <div class="loader" id="loader"></div>
 
   <div class="history" id="history" style="display:none;">
@@ -395,6 +490,151 @@
 
   <script>
     let historyList = [];
+    let currentEventSource = null;
+
+    // Client-side analytics tracking
+    function trackPageView() {
+      // Track page view on load
+      fetch('/api/track', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event: 'page_view',
+          page: 'index',
+          timestamp: new Date().toISOString()
+        })
+      }).catch(err => console.log('Analytics tracking failed:', err));
+    }
+
+    function trackUserInteraction(action, details = {}) {
+      // Track user interactions
+      fetch('/api/track', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event: 'user_interaction',
+          action: action,
+          details: details,
+          timestamp: new Date().toISOString()
+        })
+      }).catch(err => console.log('Analytics tracking failed:', err));
+    }
+
+    // Track page view when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      trackPageView();
+    });
+
+    // Progress tracking functions
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 MB';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function showProgressBar() {
+      const progressContainer = document.getElementById('progressContainer');
+      const loader = document.getElementById('loader');
+      progressContainer.classList.add('show');
+      loader.style.display = 'none';
+    }
+
+    function hideProgressBar() {
+      const progressContainer = document.getElementById('progressContainer');
+      progressContainer.classList.remove('show');
+    }
+
+    function updateProgress(data) {
+      const progressBar = document.getElementById('progressBar');
+      const progressPercentage = document.getElementById('progressPercentage');
+      const progressDownloaded = document.getElementById('progressDownloaded');
+      const progressTotal = document.getElementById('progressTotal');
+      const progressFilename = document.getElementById('progressFilename');
+      const progressStatus = document.getElementById('progressStatus');
+
+      if (data.filename) {
+        progressFilename.textContent = data.filename;
+      }
+
+      if (data.progress !== undefined) {
+        progressBar.style.width = data.progress + '%';
+        progressPercentage.textContent = data.progress.toFixed(1) + '%';
+      }
+
+      if (data.downloaded !== undefined) {
+        progressDownloaded.textContent = formatBytes(data.downloaded);
+      }
+
+      if (data.total_size !== undefined && data.total_size > 0) {
+        progressTotal.textContent = formatBytes(data.total_size);
+      }
+
+      if (data.completed) {
+        progressStatus.textContent = 'Download completed! Starting file download...';
+        progressStatus.className = 'progress-status completed';
+        progressBar.style.width = '100%';
+        progressPercentage.textContent = '100%';
+      } else if (data.error) {
+        progressStatus.textContent = 'Error: ' + data.error;
+        progressStatus.className = 'progress-status error';
+      } else {
+        progressStatus.textContent = 'Downloading...';
+        progressStatus.className = 'progress-status downloading';
+      }
+    }
+
+    function startProgressTracking(downloadId) {
+      if (currentEventSource) {
+        currentEventSource.close();
+      }
+
+      showProgressBar();
+      
+      currentEventSource = new EventSource(`/download_progress/${downloadId}`);
+      
+      currentEventSource.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          updateProgress(data);
+          
+          if (data.completed) {
+            currentEventSource.close();
+            currentEventSource = null;
+            // Hide progress bar after a delay
+            setTimeout(() => {
+              hideProgressBar();
+            }, 3000);
+          } else if (data.error) {
+            currentEventSource.close();
+            currentEventSource = null;
+            // Hide progress bar after a delay
+            setTimeout(() => {
+              hideProgressBar();
+            }, 5000);
+          }
+        } catch (e) {
+          console.error('Error parsing progress data:', e);
+        }
+      };
+      
+      currentEventSource.onerror = function(event) {
+        console.error('EventSource error:', event);
+        if (currentEventSource) {
+          currentEventSource.close();
+          currentEventSource = null;
+        }
+        updateProgress({ error: 'Connection lost. Please try again.' });
+        setTimeout(() => {
+          hideProgressBar();
+        }, 5000);
+      };
+    }
 
     // Cookie upload functionality
     document.getElementById('cookieFile').addEventListener('change', function(e) {
@@ -521,20 +761,23 @@
     document.getElementById('downloadForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       
-      // Check if cookies are uploaded for YouTube downloads
+      // Track download attempt
+      const url = document.getElementById('video_url').value;
       const platform = document.getElementById('platform').value;
+      trackUserInteraction('download_attempt', { platform: platform, url_domain: new URL(url).hostname });
+      
+      // Check if cookies are uploaded for YouTube downloads
       const cookieStatus = document.getElementById('cookieStatus');
       
       if (platform === 'youtube' && !cookieStatus.classList.contains('success')) {
         alert('⚠️ Please upload your cookies file first to download YouTube videos!');
         document.querySelector('.cookie-section').scrollIntoView({ behavior: 'smooth' });
+        trackUserInteraction('download_blocked', { reason: 'missing_cookies', platform: platform });
         return;
       }
       
       const loader = document.getElementById('loader');
       loader.style.display = 'block';
-
-      const url = document.getElementById('video_url').value;
 
       try {
         const res = await fetch('/download', {
@@ -556,39 +799,52 @@
           return;
         }
 
-        // Get filename from Content-Disposition header
-        const contentDisposition = res.headers.get('Content-Disposition');
-        let filename = 'video';
-        if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-          if (filenameMatch) {
-            filename = filenameMatch[1];
-          }
-        }
-
-        // Create blob and download
-        const blob = await res.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(downloadUrl);
-
-        // Add to history
-        historyList.unshift({
-          platform,
-          title: filename.replace(/\.[^/.]+$/, ''), // Remove extension
-          time: new Date().toLocaleTimeString()
-        });
-        updateHistory();
+        // Parse the JSON response with download info
+        const downloadData = await res.json();
         
-        alert('✅ Download started! Check your downloads folder.');
+        if (downloadData.success && downloadData.download_id) {
+          // Track successful download
+          trackUserInteraction('download_success', { 
+            platform: platform, 
+            filename: downloadData.filename,
+            download_id: downloadData.download_id 
+          });
+          
+          // Start progress tracking
+          startProgressTracking(downloadData.download_id);
+          
+          // Add to history
+          historyList.unshift({
+            platform,
+            title: downloadData.filename || 'Unknown Video',
+            time: new Date().toLocaleTimeString()
+          });
+          updateHistory();
+          
+          // Start the actual download after a short delay
+          setTimeout(() => {
+            const a = document.createElement('a');
+            a.href = downloadData.download_url;
+            a.download = downloadData.filename || 'video';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }, 1000);
+          
+        } else {
+          trackUserInteraction('download_error', { 
+            platform: platform, 
+            error: downloadData.error || 'Invalid response from server' 
+          });
+          alert('Error: ' + (downloadData.error || 'Invalid response from server'));
+        }
         
       } catch (err) {
         loader.style.display = 'none';
+        trackUserInteraction('download_error', { 
+          platform: platform, 
+          error: err.message 
+        });
         alert('Request failed: ' + err.message);
       }
     });
